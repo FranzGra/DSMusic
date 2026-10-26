@@ -102,6 +102,10 @@
   animation: zone-in 120ms ease-out;
 }
 .pnl__zhead.is-on { outline: 2px solid var(--accent); background: rgb(30 215 96 / 0.1); }
+/* Riga in cima = «Unisci come schede»: la pillola a destra, la linea verde tra le linguette resta. */
+.pnl__zpill--head { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+.pnl__zhead.is-on .pnl__zpill--head { color: var(--accent); }
+/* Corpo: Sopra · Scambia · Sotto in proporzione 1 : 2 : 1, nessuna zona sotto 28 px. */
 .pnl__zones {
   position: absolute; z-index: 5; left: 0; right: 0; bottom: 0;
   display: flex; flex-direction: column; gap: 6px; padding: 6px;
@@ -116,11 +120,39 @@
   color: var(--text-2); font-size: var(--fs-small); font-weight: 600; text-align: center;
   transition: background-color 100ms ease-out, border-color 100ms ease-out, color 100ms ease-out;
 }
-.pnl__zone { flex: 1 1 0; }
-.pnl__zone--join { flex-grow: 1.6; }
+.pnl__zone {
+  flex: 1 1 0; min-height: 28px; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 6px;
+}
+.pnl__zone--swap { flex-grow: 2; }
 .pnl__zgap { flex: 1 1 0; }
-.pnl__zgap--mid { flex-grow: 1.6; }
-.pnl__zone span, .panels__zcol span { pointer-events: none; padding: 3px 10px; border-radius: 8px; background: rgb(10 10 10 / 0.85); }
+.pnl__zgap--mid { flex-grow: 2; }
+.panels__zcol span { pointer-events: none; padding: 3px 10px; border-radius: 8px; background: rgb(10 10 10 / 0.85); }
+.pnl__zpill {
+  pointer-events: none; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0;
+  padding: 2px 12px; border-radius: 8px; background: rgb(10 10 10 / 0.85);
+  font-size: var(--fs-small); font-weight: 600; line-height: 20px; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pnl__zone.is-on .pnl__zpill { color: var(--accent); }
+.pnl__zicon { flex: none; }
+/* Scambio sotto il puntatore: i due nomi con la freccia, e una riga che spiega. */
+.pnl__zswap { pointer-events: none; display: flex; align-items: center; gap: 10px; max-width: 100%; min-width: 0; color: var(--accent); }
+.pnl__zswap i {
+  font-style: normal; min-width: 0; max-width: 140px; height: 34px; padding: 0 14px; border-radius: 8px;
+  display: grid; place-items: center; border: 2px dashed rgb(30 215 96 / 0.7); background: rgb(10 10 10 / 0.85);
+  color: var(--text); font-size: var(--fs-small); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pnl__zcap {
+  pointer-events: none; display: block; max-width: 100%; min-width: 0;
+  font-size: var(--fs-small); font-weight: 500; line-height: 18px; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Le scritte stanno dalla parte lontana dalla sagoma trascinata (hitAt sceglie in alto o in basso) e, dove non
+   c'è posto, restano solo la spiegazione o solo la pillola. */
+.pnl__zone--at-top { justify-content: flex-start; padding-top: 10px; }
+.pnl__zone--at-bottom { justify-content: flex-end; padding-bottom: 10px; }
+.pnl__zone--fit-cap .pnl__zswap, .pnl__zone--fit-pill .pnl__zswap, .pnl__zone--fit-pill .pnl__zcap { display: none; }
 .pnl__zone.is-on, .panels__zcol.is-on { background: rgb(30 215 96 / 0.14); border: 2px solid var(--accent); color: var(--accent); }
 /* Colonna nuova: striscia sul bordo della colonna accanto a una colonna vuota. */
 .panels__stackwrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }

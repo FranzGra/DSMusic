@@ -60,3 +60,13 @@
   .pnl__bar:has(> .pnl__menubtn) .cpill.cpill--cerca { width: 28px; height: 28px; padding: 0; }
   .pnl__bar:has(> .pnl__menubtn) .cpill.cpill--cerca .cpill__text { display: none; }
 }
+
+/* Più schede (riga strumenti sotto le linguette, Panels.jsx): qui il titolo è la linguetta e il ≡ sta nella riga
+   delle linguette, quindi le soglie qui sopra (pensate per «Coda» + conteggio) non valgono. Il conteggio resta
+   sempre: a 300 px (MIN_CODA) «N brani» finisce a ~90 px e la pillola «Cerca», sempre al centro, parte a ~115 px.
+   La durata torna quando ci sta il caso più lungo, «190 brani · 11:05:28» (~163 px), con 8 px prima della pillola:
+   12 + 163 + 8 + metà pillola (36 px) = 219 px di mezza riga, cioè contenitore da 438 px in su (pannello da ~440). */
+.pnl__bar.pnl__bar--tools > .ipill.qtools__count { display: inline-flex; flex: none; white-space: nowrap; }
+@container pnl (min-width: 438px) {
+  .pnl__bar.pnl__bar--tools > .ipill.qtools__count .qtools__dur { display: inline-flex; }
+}

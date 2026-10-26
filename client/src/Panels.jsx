@@ -11,7 +11,8 @@ import { suggerimento } from './Suggerimento.jsx';
  *   pannello si trascina dal titolo;
  * - due o più schede: riga di linguette (40 px) e sotto la riga strumenti della scheda attiva (46 px, solo
  *   se la scheda ne ha). Le linguette si trascinano: tra le linguette si riordinano o entrano in un altro
- *   pannello, al centro di un pannello si uniscono, su un bordo (un quarto) fanno nascere un pannello nuovo.
+ *   pannello (la riga in cima unisce come schede), al centro di un altro pannello si scambiano con lui, nella
+ *   fascia alta o bassa (un quarto) fanno nascere un pannello nuovo sopra o sotto.
  * La × e il menu ≡ chiudono le schede; quelle chiuse tornano dal menu ≡ (che compare anche nei pannelli a
  * scheda sola finché ce n'è una chiusa) o con «Ripristina» nel menu dell'intestazione.
  *
@@ -359,14 +360,26 @@ function resetRatios(l, before) {
 /**
  * Sposta la scheda `tab` dal pannello `src` ({c, k}) secondo `to`:
  * { kind: 'tab', c, k, idx } tra le linguette · { kind: 'join', c, k } in fondo alle linguette ·
+ * { kind: 'swap', c, k } scambio: la scheda prende il posto del pannello T intero e T entra, con tutte le sue
+ * schede, tra le linguette di `src` dove stava la scheda ·
  * { kind: 'split', c, k, side } pannello nuovo sopra/sotto (stessa colonna) o a sinistra/destra (colonna vuota accanto).
  */
 export function moveTab(l0, tab, src, to) {
+  // Scheda sola nel suo pannello: scambiarla è scambiare il pannello.
+  if (to.kind === 'swap' && l0.cols[src.c]?.[src.k]?.tabs.length === 1) return movePanel(l0, src, to);
   const l = copy(l0);
   const before = l.cols.map((c) => c.length);
   const S = l.cols[src.c]?.[src.k];
   const T = l.cols[to.c]?.[to.k];
   if (!S || !T || !S.tabs.includes(tab)) return l0;
+  if (to.kind === 'swap') {
+    if (T === S) return l0;
+    S.tabs.splice(S.tabs.indexOf(tab), 1, ...T.tabs);
+    if (S.act === tab) S.act = T.act;
+    const col = l.cols[to.c];
+    col[col.indexOf(T)] = { tabs: [tab], act: tab };
+    return l; // stesso numero di pannelli per colonna: le altezze restano
+  }
   if (to.kind === 'tab' || to.kind === 'join') {
     if (T === S) {
       const oi = S.tabs.indexOf(tab);
@@ -404,6 +417,7 @@ function fractions(n, r) {
 /**
  * Sposta tutto il pannello `src` ({c, k}) con tutte le sue schede, secondo `to` (come moveTab):
  * { kind: 'tab', idx } le sue schede entrano tra le linguette di T · { kind: 'join' } in fondo alle linguette ·
+ * { kind: 'swap' } i due pannelli si scambiano di posto (ognuno prende la misura del posto in cui arriva) ·
  * { kind: 'split', side } sopra/sotto T oppure in una colonna vuota accanto alla colonna c.
  * Riordinare nella stessa colonna tiene le altezze dei pannelli; le colonne che cambiano numero ripartono uguali.
  */
@@ -421,6 +435,11 @@ export function movePanel(l0, src, to) {
   }
   const T = l.cols[to.c]?.[to.k];
   if (!T || T === S) return l0;
+  if (to.kind === 'swap') {
+    l.cols[src.c][src.k] = T;
+    l.cols[to.c][to.k] = S;
+    return l; // ogni colonna tiene i suoi posti e le sue altezze
+  }
   if (to.kind === 'tab' || to.kind === 'join') {
     l.cols[src.c].splice(src.k, 1);
     const i = to.kind === 'join' ? T.tabs.length : Math.min(to.idx, T.tabs.length);
@@ -449,8 +468,10 @@ export function movePanel(l0, src, to) {
 const dropOn = (l, d, to) => (d.mode === 'panel' ? movePanel(l, d, to) : moveTab(l, d.tab, d, to));
 
 /**
- * Dove si può lasciare ciò che si trascina sul pannello [c, k]: { head, top, bottom, join } (null: da nessuna
- * parte, il pannello di partenza). `head`: tra le linguette (o sul titolo di una scheda sola = unisci).
+ * Dove si può lasciare ciò che si trascina sul pannello [c, k]: { head, top, bottom, swap, join } (null: da
+ * nessuna parte, il pannello di partenza). `head`: la riga in cima, tra le linguette o sul titolo di una scheda
+ * sola = unisci come schede (`join`: in un altro pannello, non solo un riordino). `swap`: il centro, scambio
+ * con il pannello; non c'è sul pannello di partenza (quindi con un pannello solo non c'è mai).
  */
 function dropOptions(l, d, c, k) {
   const S = l.cols[d.c]?.[d.k];
@@ -472,7 +493,7 @@ function dropOptions(l, d, c, k) {
   }
   const join = !self;
   const head = T.tabs.length > 1 ? true : join;
-  return { head, top, bottom, join };
+  return { head, top, bottom, swap: !self, join };
 }
 
 /** Colonne vuote accanto alla colonna c dove può nascere una colonna nuova: { left, right }. */
@@ -601,6 +622,18 @@ const COL_NAME = ['Sinistra', 'Centro', 'Destra'];
 const MenuIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
     <path d="M4 7h16M4 12h16M4 17h16" />
+  </svg>
+);
+// Icone delle zone di rilascio (16 px, come nella tavola «Zone di rilascio»).
+const ZONE_ICON = {
+  head: <><rect x="3" y="4" width="8" height="5" rx="1.5" /><rect x="13" y="4" width="8" height="5" rx="1.5" /><rect x="3" y="12" width="18" height="8" rx="2" /></>,
+  top: <><path d="M5 3h14" /><path d="m18 13-6-6-6 6" /><path d="M12 7v14" /></>,
+  swap: <><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></>,
+  bottom: <><path d="M19 21H5" /><path d="m6 11 6 6 6-6" /><path d="M12 17V3" /></>,
+};
+const ZoneIcon = ({ kind }) => (
+  <svg className="pnl__zicon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {ZONE_ICON[kind]}
   </svg>
 );
 const XIcon = () => (
@@ -864,15 +897,24 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
     const S = l.cols[d.c]?.[d.k];
     if (!T || !S) return null;
     if (what === 'zone') {
-      if (side === 'join') return { kind: 'join', c, k };
+      if (side === 'swap') {
+        // Le scritte dello scambio vanno dove c'è più posto, lontano dalla sagoma (da y + 12 a y + 46); se lì
+        // non stanno tutte, restano la spiegazione e la pillola (112 px tutto, 60 px senza i due nomi).
+        const r = z.getBoundingClientRect();
+        const above = y - r.top - 6;
+        const below = r.bottom - (y + 46) - 6;
+        const room = Math.max(above, below);
+        const show = room >= 112 ? 'all' : room >= 60 ? 'cap' : 'pill';
+        return { kind: 'swap', c, k, at: above >= below ? 'top' : 'bottom', fit: show };
+      }
       // Altezza che avrà il pannello nuovo: la colonna si divide in parti uguali (vedi resetRatios).
       const stack = z.closest('.panels__stack');
       const m = l.cols[c].length + (d.mode === 'panel' && d.c === c ? 0 : 1);
       const size = stack ? Math.round((stack.clientHeight - GAP * (m - 1)) / m) : 0;
       return { kind: 'split', c, k, side, size };
     }
-    // Riga in cima: una scheda sola = unisci; più schede = tra le linguette, prima della prima linguetta che ha
-    // il centro a destra del puntatore.
+    // Riga in cima (unisci come schede): una scheda sola = in fondo; più schede = tra le linguette, prima della
+    // prima linguetta che ha il centro a destra del puntatore.
     if (T.tabs.length === 1) return { kind: 'join', c, k };
     const sec = z.closest('[data-pnl]');
     const r = sec.getBoundingClientRect();
@@ -1105,20 +1147,41 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
     const cz = drag ? colOptions(layout, c) : null;
     const what = drag && (drag.mode === 'panel' ? `«${layout.cols[drag.c][drag.k].tabs.map((t) => TAB_LABEL[t]).join(' + ')}»` : `«${TAB_LABEL[drag.tab]}»`);
     const zKey = (side) => `zone|${c}|${k}|${side}`;
-    const zOn = (side) => (side === 'join' ? on?.kind === 'join' && !on.head : on?.kind === 'split' && on.side === side);
+    const zOn = (side) => (side === 'swap' ? on?.kind === 'swap' : on?.kind === 'split' && on.side === side);
     let zones = null;
     if (zo) {
-      const zone = (side, label) => (
-        <div key={side} aria-hidden="true" data-drop={zKey(side)} className={`pnl__zone pnl__zone--${side}${zOn(side) ? ' is-on' : ''}`}>
-          <span>{label}</span>
+      const zone = (side, label, extra = null, more = '') => (
+        <div key={side} aria-hidden="true" data-drop={zKey(side)} className={`pnl__zone pnl__zone--${side}${zOn(side) ? ' is-on' : ''}${more}`}>
+          <span className="pnl__zpill"><ZoneIcon kind={side} />{label}</span>
+          {extra}
         </div>
       );
+      // Centro = scambio. Le zone Scambia ferme mostrano solo la pillola; quella sotto il puntatore dice con chi,
+      // mostra i due che si scambiano e una riga che spiega, tutto dalla parte libera dalla sagoma trascinata
+      // (`on.at`, scelto da hitAt: in alto o in basso nella zona).
+      const swapOn = zOn('swap');
+      const whole = drag.mode === 'panel';
+      const swapExtra = swapOn && (
+        <>
+          <span className="pnl__zswap">
+            <i>{whole ? layout.cols[drag.c][drag.k].tabs.map((t) => TAB_LABEL[t]).join(' + ') : TAB_LABEL[drag.tab]}</i>
+            <ZoneIcon kind="swap" />
+            <i>{pnl.tabs.map((t) => TAB_LABEL[t]).join(' + ')}</i>
+          </span>
+          <small className="pnl__zcap">{whole ? 'Ognuno va dove stava l’altro' : 'La scheda si scambia con tutto il pannello'}</small>
+        </>
+      );
+      const headOn = on && (on.kind === 'tab' || on.kind === 'join');
       zones = (
         <>
-          {zo.head && <div aria-hidden="true" className={`pnl__zhead${on && (on.kind === 'tab' || (on.kind === 'join' && !multi)) ? ' is-on' : ''}`} data-drop={`head|${c}|${k}`} style={{ height: headH }} />}
+          {zo.head && (
+            <div aria-hidden="true" className={`pnl__zhead${headOn ? ' is-on' : ''}`} data-drop={`head|${c}|${k}`} style={{ height: headH }}>
+              {zo.join && <span className="pnl__zpill pnl__zpill--head"><ZoneIcon kind="head" />Unisci come schede</span>}
+            </div>
+          )}
           <div aria-hidden="true" className={`pnl__zones${cz.left ? ' pnl__zones--l' : ''}${cz.right ? ' pnl__zones--r' : ''}`} style={{ top: headH }}>
             {zo.top ? zone('top', 'Sopra') : <div className="pnl__zgap" />}
-            {zo.join ? zone('join', 'Unisci come schede') : <div className="pnl__zgap pnl__zgap--mid" />}
+            {zo.swap ? zone('swap', swapOn ? `Scambia con «${p.title}»` : 'Scambia', swapExtra, swapOn ? ` pnl__zone--at-${on.at} pnl__zone--fit-${on.fit}` : '') : <div className="pnl__zgap pnl__zgap--mid" />}
             {zo.bottom ? zone('bottom', 'Sotto') : <div className="pnl__zgap" />}
           </div>
         </>
