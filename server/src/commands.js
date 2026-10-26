@@ -1,7 +1,7 @@
 // Comandi slash (/play, /stop, /skip, /pausa, /coda, /vai, /precedente): stessa logica della GUI (music.js),
 // così l'Activity si aggiorna in tempo reale anche quando si usa la chat.
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, escapeMarkdown } from 'discord.js';
-import { NOME_MAX, PIANO_MSG, SoundError } from './suoni.js';
+import { NOME_MAX, SoundError, pianoMsg } from './suoni.js';
 
 const VERDE = 0x1ed760;
 
@@ -229,7 +229,8 @@ async function comandoSuono(i, { g, utente, notify, soundbar }) {
     if (!s) return soloTe(i, 'Suono non trovato: scegli un nome dai suggerimenti.');
     const vocale = canaleVocale(i);
     if (!vocale && !g.inVoice()) return soloTe(i, 'Entra prima in un canale vocale, poi usa /suono suona.');
-    if (!soundbar.limitatore.prova(i.guildId, i.user.id)) return soloTe(i, PIANO_MSG);
+    const attesa = soundbar.limitatore.attesa(i.guildId, i.user.id);
+    if (attesa > 0) return soloTe(i, pianoMsg(attesa));
     try {
       const r = await g.suona(s, { file: library.daSuonare(i.guildId, s), by: utente, channelId: vocale });
       return soloTe(i, r.prova ? `Suonato «${s.name}» (solo in Discord)` : `Suono: **${escapeMarkdown(s.name)}**`);

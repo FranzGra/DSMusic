@@ -18,7 +18,7 @@ import { createDiagLimiter, diagLine } from './diag.js';
 import { AudioCache } from './audiocache.js';
 import { PlaylistError, PlaylistLibrary } from './playlists.js';
 import { StatoCanale } from './statocanale.js';
-import { PIANO_MSG, SoundError, SoundLibrary, creaBiglietti, creaConvertitore, creaLimitatore, creaRouteSuoni, creaVolumizzatore, puoCaricare } from './suoni.js';
+import { SoundError, SoundLibrary, creaBiglietti, creaConvertitore, creaLimitatore, creaRouteSuoni, creaVolumizzatore, pianoMsg, puoCaricare } from './suoni.js';
 
 checkConfig();
 
@@ -65,14 +65,14 @@ const broadcast = (guildId, msg) => {
   for (const ws of sockets.get(guildId) ?? []) send(ws, msg);
 };
 
-// Cache audio in RAM (brano in corso e prossimo), budget unico per tutti i server
+// Cache audio in RAM (per server: ultimo ascoltato, in corso e 2 prossimi), budget unico per tutti i server
 const cacheAudio = new AudioCache({
   budgetMb: config.cacheAudioMb,
   maxBrani: config.cacheAudioBrani,
   maxSec: config.cacheAudioMaxMinuti * 60,
 });
 console.log(cacheAudio.attiva
-  ? `[cache] Audio in RAM: fino a ${config.cacheAudioMb} MB e ${config.cacheAudioBrani} brani (max ${config.cacheAudioMaxMinuti} min l'uno)`
+  ? `[cache] Audio in RAM: fino a ${config.cacheAudioMb} MB e ${config.cacheAudioBrani} brani per server (max ${config.cacheAudioMaxMinuti} min l'uno)`
   : '[cache] Audio in RAM spenta (CACHE_AUDIO_MB=0)');
 
 // Stato del canale vocale = brano in riproduzione (STATO_CANALE=0 per spegnerlo)
@@ -528,7 +528,8 @@ wss.on('connection', (ws, req) => {
         }
         case 'suona': {
           try {
-            if (!limitaSuoni.prova(guildId, user.id)) throw new SoundError(PIANO_MSG, 'piano');
+            const attesa = limitaSuoni.attesa(guildId, user.id);
+            if (attesa > 0) throw new SoundError(pianoMsg(attesa), 'piano');
             const s = suoni.trova(guildId, String(msg.id ?? ''));
             const r = await g.suona(s, { file: suoni.daSuonare(guildId, s), by: user.name, channelId });
             if (r.prova) send(ws, { type: 'notice', kind: 'info', message: 'Suonato (solo in Discord)' });

@@ -293,33 +293,44 @@ export function creaBiglietti({ ttlMs = BIGLIETTO_MS, now = Date.now } = {}) {
 
 // ---------- anti-spam ----------
 /**
- * Limitatore: un suono ogni perUtenteMs per utente e al massimo maxFinestra suoni in finestraMs
- * per server. prova(guildId, userId) → true se può suonare (e lo conta).
+ * Limitatore: un suono ogni perUtenteMs per utente, al massimo maxFinestra suoni in finestraMs per
+ * server e al massimo maxPerPersona suoni in personaFinestraMs (finestra scorrevole) per persona.
+ * attesa(guildId, userId) → 0 se può suonare (e lo conta), altrimenti i ms da aspettare.
+ * prova(guildId, userId) → true se può suonare (e lo conta): come attesa, ma booleano.
  */
-export function creaLimitatore({ perUtenteMs = 1500, finestraMs = 10_000, maxFinestra = 6, now = Date.now } = {}) {
-  const ultimo = new Map(); // `${guild}:${user}` -> ms
+export function creaLimitatore({
+  perUtenteMs = 1500, finestraMs = 10_000, maxFinestra = 6,
+  maxPerPersona = 10, personaFinestraMs = 60_000, now = Date.now,
+} = {}) {
+  const recentiPersona = new Map(); // `${guild}:${user}` -> [ms] (ultimi suoni, in ordine)
   const recenti = new Map(); // guild -> [ms]
-  return {
-    prova(guildId, userId) {
-      const t = now();
-      const k = `${guildId}:${userId}`;
-      const u = ultimo.get(k);
-      if (u !== undefined && t - u < perUtenteMs) return false;
-      const lista = (recenti.get(guildId) ?? []).filter((x) => t - x < finestraMs);
-      if (lista.length >= maxFinestra) {
-        recenti.set(guildId, lista);
-        return false;
-      }
-      lista.push(t);
-      recenti.set(guildId, lista);
-      ultimo.set(k, t);
-      if (ultimo.size > 500) for (const [kk, v] of ultimo) if (t - v >= perUtenteMs) ultimo.delete(kk);
-      return true;
-    },
+  const attesa = (guildId, userId) => {
+    const t = now();
+    const k = `${guildId}:${userId}`;
+    const mie = (recentiPersona.get(k) ?? []).filter((x) => t - x < personaFinestraMs);
+    const lista = (recenti.get(guildId) ?? []).filter((x) => t - x < finestraMs);
+    if (mie.length) recentiPersona.set(k, mie); else recentiPersona.delete(k);
+    if (lista.length) recenti.set(guildId, lista); else recenti.delete(guildId);
+    let aspetta = 0;
+    if (mie.length) aspetta = Math.max(aspetta, perUtenteMs - (t - mie.at(-1)));
+    if (mie.length >= maxPerPersona) aspetta = Math.max(aspetta, personaFinestraMs - (t - mie[mie.length - maxPerPersona]));
+    if (lista.length >= maxFinestra) aspetta = Math.max(aspetta, finestraMs - (t - lista[lista.length - maxFinestra]));
+    if (aspetta > 0) return aspetta;
+    mie.push(t);
+    lista.push(t);
+    recentiPersona.set(k, mie);
+    recenti.set(guildId, lista);
+    if (recentiPersona.size > 500) {
+      for (const [kk, v] of recentiPersona) if (t - v.at(-1) >= personaFinestraMs) recentiPersona.delete(kk);
+    }
+    return 0;
   };
+  return { attesa, prova: (guildId, userId) => attesa(guildId, userId) === 0 };
 }
 
 export const PIANO_MSG = 'Piano con i suoni';
+/** «Piano con i suoni: riprova tra 23 s» (secondi arrotondati per eccesso). */
+export const pianoMsg = (ms) => (ms > 0 ? `${PIANO_MSG}: riprova tra ${Math.ceil(ms / 1000)} s` : PIANO_MSG);
 
 // ---------- libreria ----------
 export class SoundLibrary {

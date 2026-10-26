@@ -15,7 +15,7 @@ import { StreamType, createAudioResource } from '@discordjs/voice';
 import { GuildMusic } from '../src/music.js';
 import {
   NOME_MAX, SUONI_MAX, SoundError, SoundLibrary, argomentiFfmpeg, argomentiVolume, creaBiglietti, creaConvertitore,
-  creaLimitatore, creaRouteSuoni, creaVolumizzatore, durataDaFfmpeg, durataDaFfprobe, haUnRuolo, nomeValido, puoCaricare,
+  creaLimitatore, creaRouteSuoni, pianoMsg, creaVolumizzatore, durataDaFfmpeg, durataDaFfprobe, haUnRuolo, nomeValido, puoCaricare,
   puoModificareSuono, volumeDaHeader, volumeValido,
 } from '../src/suoni.js';
 
@@ -115,6 +115,57 @@ test('anti-spam: 1,5 s per utente e massimo 6 suoni in 10 s per server', () => {
   assert.equal(lim.prova('altro-server', 'f'), true, 'il limite è per server');
   t += 10_000;
   assert.equal(lim.prova('g', 'f'), true, 'finestra passata');
+});
+
+test('anti-spam: massimo 10 suoni al minuto per persona (finestra scorrevole)', () => {
+  let t = 0;
+  const lim = creaLimitatore({ now: () => t, maxFinestra: 1000 });
+  for (let n = 0; n < 10; n++) {
+    assert.equal(lim.prova('g', 'a'), true, `suono ${n + 1}`);
+    t += 2000; // sempre oltre la pausa di 1,5 s
+  }
+  // t = 20 s: il primo suono (t=0) esce dalla finestra a 60 s
+  assert.equal(lim.prova('g', 'a'), false, 'undicesimo in un minuto');
+  t = 59_999;
+  assert.equal(lim.prova('g', 'a'), false, 'il primo non è ancora uscito');
+  t = 60_000;
+  assert.equal(lim.prova('g', 'a'), true, 'il primo è uscito dalla finestra');
+  assert.equal(lim.prova('g', 'a'), false, 'pausa di 1,5 s');
+});
+
+test('anti-spam: pausa di 1,5 s, persone indipendenti, secondi di attesa', () => {
+  let t = 0;
+  const lim = creaLimitatore({ now: () => t, maxFinestra: 1000 });
+  assert.equal(lim.attesa('g', 'a'), 0);
+  assert.equal(lim.attesa('g', 'a'), 1500, 'pausa');
+  assert.equal(lim.prova('g', 'b'), true, 'un altra persona non è toccata');
+  t = 1499;
+  assert.equal(lim.attesa('g', 'a'), 1);
+  t = 1500;
+  assert.equal(lim.prova('g', 'a'), true);
+  // persona c: 10 suoni a 2 s l'uno → attesa fino a 60 s dal primo
+  t = 100_000;
+  for (let n = 0; n < 10; n++, t += 2000) assert.equal(lim.prova('g', 'c'), true);
+  assert.equal(lim.prova('g', 'b'), true, 'b indipendente da c');
+  t = 120_000; // 20 s dopo il primo di c → 40 s di attesa
+  const ms = lim.attesa('g', 'c');
+  assert.equal(ms, 40_000);
+  assert.equal(pianoMsg(ms), 'Piano con i suoni: riprova tra 40 s');
+  assert.equal(pianoMsg(1), 'Piano con i suoni: riprova tra 1 s');
+  assert.equal(pianoMsg(0), 'Piano con i suoni');
+  assert.equal(lim.prova('altro', 'c'), true, 'il limite è per server');
+});
+
+test('anti-spam: limite per server invariato (6 in 10 s) e mappe ripulite', () => {
+  let t = 0;
+  const lim = creaLimitatore({ now: () => t });
+  for (const u of ['a', 'b', 'c', 'd', 'e', 'f']) assert.equal(lim.prova('g', u), true);
+  assert.ok(lim.attesa('g', 'z') > 0 && lim.attesa('g', 'z') <= 10_000, 'settimo in 10 s');
+  t = 10_000;
+  assert.equal(lim.prova('g', 'z'), true);
+  // molte persone diverse: dopo un minuto la memoria si ripulisce senza errori
+  for (let n = 0; n < 600; n++) { t += 100_000; lim.prova(`g${n}`, `u${n}`); }
+  assert.equal(lim.prova('g', 'a'), true);
 });
 
 test('anti-spam con mock.timers (Date finto)', () => {
@@ -905,7 +956,7 @@ test('/suono: suona (prova), permesso di caricare, elimina, suggerimenti', async
   assert.equal(music.get('g').snapshot().suono.name, 'Gong');
   i = interazione('suona', { opts: { nome: 'gong' } });
   await handleCommand(i, ctx);
-  assert.equal(i.calls[0][1].content, 'Piano con i suoni', 'anti-spam per utente');
+  assert.equal(i.calls[0][1].content, 'Piano con i suoni: riprova tra 2 s', 'anti-spam per utente');
 
   i = interazione('aggiungi', { userId: 'u2', attachment: { name: 'a.mp3', size: 10, url: 'http://x' } });
   await handleCommand(i, ctx);

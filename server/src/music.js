@@ -21,6 +21,7 @@ const ATTESA_RIPIEGO_MS = 45_000; // ripiego yt-dlp | ffmpeg: più lento
 const URL_IN_CACHE_MAX = 20;
 const VOLUME_ATTESA_MS = 250; // cursore del volume: si applica 250 ms dopo l'ultimo movimento
 const ANTICIPO_MAX_S = 1.5; // cambio di volume: il nuovo audio parte al massimo così avanti
+const PROSSIMI_IN_RAM = 2; // brani successivi preparati in anticipo (link e audio in RAM)
 
 /** Copia di un brano con un id nuovo (lo stesso brano può stare in coda e nello storico). */
 const copia = (t) => ({ ...t, id: randomUUID() });
@@ -185,7 +186,7 @@ export class GuildMusic {
 
   changed() {
     this.checkIdle();
-    this.cache?.proteggi(this.guildId, [this.current?.url, this.prossimoBrano()?.url]);
+    this.cache?.proteggi(this.guildId, this.braniDaTenere()); // il resto esce dalla cache
     this.onAttivita?.();
     this.onChange(this.guildId, this.snapshot());
     this.onPersist?.(this.guildId, this.persistData());
@@ -619,7 +620,28 @@ export class GuildMusic {
 
   /** Il brano che suonerà dopo quello attuale (con i loop). */
   prossimoBrano() {
-    return this.loop === 'track' ? this.current : this.queue[0] || (this.loop === 'queue' ? this.current : null);
+    return this.prossimiBrani(1)[0] || null;
+  }
+
+  /**
+   * I brani che suoneranno dopo quello attuale, in ordine e con i loop (al massimo n). Ripeti brano:
+   * solo il brano in corso. Ripeti coda: finita la coda torna il brano in corso.
+   */
+  prossimiBrani(n = PROSSIMI_IN_RAM) {
+    if (this.loop === 'track') return this.current ? [this.current] : [];
+    const lista = this.queue.slice(0, n);
+    if (this.loop === 'queue' && this.current && lista.length < n) lista.push(this.current);
+    return lista;
+  }
+
+  /**
+   * I brani da tenere nella cache in RAM (al massimo 4): l'ultimo ascoltato (diverso da quello in
+   * corso, utile per «precedente»), quello in corso e i 2 prossimi. Gli altri vengono tolti.
+   */
+  braniDaTenere() {
+    const cur = this.current?.url;
+    const prima = this.history.find((t) => t.url !== cur)?.url;
+    return [...new Set([prima, cur, ...this.prossimiBrani().map((t) => t.url)].filter(Boolean))];
   }
 
   /** Scarica nella cache in RAM l'audio di un brano (se il link è diretto e il brano non è troppo lungo). */
@@ -629,23 +651,34 @@ export class GuildMusic {
   }
 
   /**
-   * Mentre suona un brano prepara il prossimo, così parte senza attese: link diretto (yt-dlp, con
-   * priorità bassa) e poi il suo audio nella cache in RAM. Se è già in RAM non serve nemmeno il link.
+   * Mentre suona un brano prepara i 2 prossimi, così partono senza attese: uno alla volta (prima il
+   * prossimo, poi il secondo) link diretto (yt-dlp, con priorità bassa) e poi audio nella cache in
+   * RAM. Se un brano è già in RAM non serve nemmeno il link. Se la coda cambia nel frattempo si ferma.
    */
   async prefetch() {
-    const next = this.prossimoBrano();
-    if (!next || !this.bot?.ready) return;
+    if (!this.bot?.ready) return;
+    for (const next of this.prossimiBrani()) {
+      if (next === this.current) continue; // ripeti brano / ripeti coda corta: è già quello in corso
+      if (!(await this.prepara(next))) return;
+    }
+  }
+
+  /** Prepara un brano successivo. false se nel frattempo è uscito dai prossimi (coda cambiata). */
+  async prepara(next) {
+    const ancora = () => this.prossimiBrani().includes(next);
     try {
       await ensurePlayable(next, { bassa: true });
-      if (this.prossimoBrano() !== next) return; // nel frattempo la coda è cambiata (es. svuotata)
-      if (!next.url || this.cache?.ha(next.url)) return;
+      if (!ancora()) return false; // nel frattempo la coda è cambiata (es. svuotata)
+      if (!next.url || this.cache?.ha(next.url)) return true;
       const c = this.streamCache.get(next.url);
       const info = c && c.exp > Date.now() ? c : await this.streamInfo(next, false, { bassa: true });
-      this.cache?.proteggi(this.guildId, [this.current?.url, next.url]);
+      if (!ancora()) return false; // tolto mentre si chiedeva il link: niente download inutile
+      this.cache?.proteggi(this.guildId, this.braniDaTenere());
       if (this.inVoice()) this.inCache(next, info);
     } catch (err) {
       console.error(`[musica ${this.guildId}] preparazione di «${next.title}» non riuscita: ${err.message}`);
     }
+    return true;
   }
 
   // ---------- storico (ascoltati di recente) ----------
@@ -748,7 +781,7 @@ export class GuildMusic {
     const n = this.queue.length;
     this.queue = [];
     this.prossimi.clear();
-    this.changed(); // aggiorna anche la protezione della cache: il prefetch del successivo non serve più
+    this.changed(); // aggiorna anche la cache: i brani preparati in anticipo escono dalla RAM
     return n;
   }
 

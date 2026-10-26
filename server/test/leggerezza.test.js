@@ -106,17 +106,74 @@ test('cache: budget in MB e numero di brani, esce il meno usato ma mai quello pr
   await c.attesa();
   assert.deepEqual([...c.voci.keys()], ['a', 'b', 'c']);
   await c.sorgente('a'); // «a» usato di recente: ora il meno usato è «b»
-  c.proteggi('g1', ['b']); // ma «b» è il brano in corso: non si tocca
   c.scarica('d', info(), { durata: 200 });
   await c.attesa();
-  assert.deepEqual([...c.voci.keys()], ['b', 'a', 'd'], 'è uscito «c», non il protetto «b»');
-  assert.ok(c.usati() <= 20 * MB);
-  // Tutto protetto e niente spazio: il nuovo brano non entra (e non rompe niente)
-  c.proteggi('g1', ['a', 'b', 'd']);
+  assert.deepEqual([...c.voci.keys()], ['c', 'a', 'd'], 'senza protezioni è uscito il meno usato, «b»');
+  // Un server dice cosa gli serve: il resto («c») esce subito
+  c.proteggi('g1', ['a', 'd']);
+  assert.deepEqual([...c.voci.keys()], ['a', 'd']);
+  c.proteggi('g1', ['a', 'd', 'e', 'f']);
   c.scarica('e', info(), { durata: 200 });
   await c.attesa();
-  assert.equal(c.ha('e'), false);
+  assert.equal(c.ha('e'), true);
+  // Tutto protetto e niente spazio nel budget: il nuovo brano non entra (e non rompe niente)
+  c.scarica('f', info(), { durata: 200 });
+  await c.attesa();
+  assert.equal(c.ha('f'), false);
   assert.equal(c.stato().scartati, 1);
+  assert.ok(c.usati() <= 20 * MB);
+  c.svuota();
+});
+
+test('cache: al massimo 4 brani per server; quello che esce dall\'insieme viene tolto subito', async () => {
+  const c = new AudioCache({ budgetMb: 96, fetchFn: fetchFinto(2 * MB), log() {} });
+  assert.equal(c.maxBrani, 4, 'predefinito: 4 brani');
+  c.proteggi('g1', ['p', 'cur', 'n1', 'n2']);
+  for (const k of ['p', 'cur', 'n1', 'n2']) c.scarica(k, info(), { durata: 200 });
+  await c.attesa();
+  assert.equal(c.stato().brani, 4);
+  // Un quinto brano non entra finché il server ne tiene già 4
+  c.proteggi('g1', ['p', 'cur', 'n1', 'n2', 'x']);
+  c.scarica('x', info(), { durata: 200 });
+  await c.attesa();
+  assert.equal(c.ha('x'), false);
+  // Cambio brano: «p» esce, arriva «n3»
+  c.proteggi('g1', ['cur', 'n1', 'n2', 'n3']);
+  assert.deepEqual([...c.voci.keys()].sort(), ['cur', 'n1', 'n2']);
+  // Un secondo server ha i suoi 4 posti e non toglie quelli del primo
+  c.proteggi('g2', ['a', 'b', 'c', 'd']);
+  for (const k of ['n3', 'a', 'b', 'c', 'd']) c.scarica(k, info(), { durata: 200 });
+  await c.attesa();
+  assert.equal(c.stato().brani, 8);
+  c.proteggi('g2', []); // il secondo server si ferma: i suoi brani escono, quelli del primo restano
+  assert.deepEqual([...c.voci.keys()].sort(), ['cur', 'n1', 'n2', 'n3']);
+  c.svuota();
+});
+
+test('cache: brano tolto dalla coda mentre si scarica (o in attesa) → download annullato', async () => {
+  const richieste = [];
+  const lento = async (url, { signal, headers }) => {
+    richieste.push(headers.Range);
+    await new Promise((r) => { signal.addEventListener('abort', r); setTimeout(r, 100); });
+    if (signal.aborted) throw Object.assign(new Error('annullato'), { name: 'AbortError' });
+    return new Response(Buffer.alloc(10), { status: 206, headers: { 'content-range': 'bytes 0-9/10' } });
+  };
+  const c = new AudioCache({ budgetMb: 10, fetchFn: lento, log() {} });
+  c.proteggi('g1', ['n1', 'n2']);
+  c.scarica('n1', info(), { durata: 100 });
+  c.scarica('n2', info(), { durata: 100 });
+  await flush();
+  assert.equal(c.stato().inCoda, 2);
+  c.proteggi('g1', []); // coda svuotata
+  assert.equal(c.coda.length, 0, 'il secondo non parte nemmeno');
+  await c.attesa();
+  assert.equal(richieste.length, 1, 'una sola richiesta, poi annullata');
+  assert.deepEqual({ brani: c.stato().brani, inCoda: c.stato().inCoda }, { brani: 0, inCoda: 0 });
+  // Torna utile: si può scaricare di nuovo
+  c.proteggi('g1', ['n1']);
+  assert.equal(c.scarica('n1', info(), { durata: 100 }), true);
+  await c.attesa();
+  assert.equal(c.ha('n1'), true);
   c.svuota();
 });
 
@@ -177,6 +234,92 @@ test('prefetch: risolve il prossimo con priorità bassa e lo scarica in RAM; se 
   g.streamCache.clear();
   await g.prefetch();
   assert.equal(opzioniYtdlp.length, 1, 'già in RAM: nessuna risoluzione');
+});
+
+test('cache in RAM: si tengono l\'ultimo ascoltato, quello in corso e i 2 prossimi (loop, indietro, coda corta)', () => {
+  const protezioni = [];
+  const g = new GuildMusic('g', { bot: null, onChange() {}, onNotice() {} });
+  g.cache = { proteggi: (_o, chiavi) => protezioni.push(chiavi) };
+  const [a, b, c, d, e] = ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd', 'eeeeeeeeeee'].map((id) => brano(id));
+  const u = (...t) => t.map((x) => x.url);
+  g.current = b;
+  g.history = [{ ...a }];
+  g.queue = [c, d, e];
+  assert.deepEqual(g.braniDaTenere(), u(a, b, c, d));
+  // Coda con un solo brano dopo, o nessuno
+  g.queue = [c];
+  assert.deepEqual(g.braniDaTenere(), u(a, b, c));
+  g.queue = [];
+  assert.deepEqual(g.braniDaTenere(), u(a, b));
+  // Ripeti brano: il prossimo è lo stesso
+  g.queue = [c, d];
+  g.loop = 'track';
+  assert.deepEqual(g.braniDaTenere(), u(a, b));
+  assert.equal(g.prossimoBrano(), b);
+  // Ripeti coda corta: dopo «c» torna «b» (già in corso)
+  g.loop = 'queue';
+  g.queue = [c];
+  assert.deepEqual(g.prossimiBrani().map((t) => t.url), u(c, b));
+  assert.deepEqual(g.braniDaTenere(), u(a, b, c));
+  g.queue = [c, d, e];
+  assert.deepEqual(g.braniDaTenere(), u(a, b, c, d));
+  g.loop = 'off';
+  // In cima allo storico lo stesso brano in corso (ripeti brano): si tiene quello prima, diverso
+  g.history = [{ ...b }, { ...a }];
+  assert.deepEqual(g.braniDaTenere(), u(a, b, c, d));
+  // Riordino, brani tolti, mescola, svuota: la cache viene aggiornata a ogni cambio
+  g.history = [{ ...a }];
+  g.move(e.id, 0);
+  assert.deepEqual(protezioni.at(-1), u(a, b, e, c));
+  g.remove(e.id);
+  assert.deepEqual(protezioni.at(-1), u(a, b, c, d));
+  g.shuffle();
+  assert.deepEqual(protezioni.at(-1), u(a, b, ...g.queue.slice(0, 2)));
+  g.clear();
+  assert.deepEqual(protezioni.at(-1), u(a, b));
+  // Indietro: torna «a», «b» va in cima alla coda; il precedente è quello ascoltato prima di «a»
+  g.history = [{ ...a }, { ...e }];
+  g.queue = [c];
+  g.startedAt = Date.now(); // appena partito: «indietro» va al brano prima
+  g.previous();
+  assert.equal(g.current.url, a.url);
+  assert.deepEqual(protezioni.at(-1), u(e, a, b, c));
+  // Brano finito: quello appena suonato diventa il «precedente»
+  g.stop();
+  g.history = [];
+  g.queue = [a, b, c, d];
+  void g.playNext({ fromEnd: false });
+  void g.playNext({ fromEnd: true });
+  assert.equal(g.current.url, b.url);
+  assert.deepEqual(protezioni.at(-1), u(a, b, c, d));
+  g.stop();
+});
+
+test('prefetch: prepara i 2 prossimi in ordine (prima il prossimo) e si ferma se la coda cambia', async () => {
+  const g = new GuildMusic('g', { bot: { ready: true, inVoice: () => true }, onChange() {}, onNotice() {} });
+  const scaricati = [];
+  const chiesti = [];
+  g.cache = { ha: () => false, proteggi() {}, scarica: (k) => scaricati.push(k) };
+  g.lib.getStream = async (url) => { chiesti.push(url); return { ...info(), exp: Date.now() + 60_000 }; };
+  const [a, b, c, d] = ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd'].map((id) => brano(id));
+  g.current = a;
+  g.queue = [b, c, d];
+  await g.prefetch();
+  assert.deepEqual(scaricati, [b.url, c.url], 'solo i 2 prossimi, nell\'ordine');
+  assert.deepEqual(chiesti, [b.url, c.url]);
+  // La coda cambia mentre si chiede il link del primo: niente download del brano tolto né del secondo
+  scaricati.length = 0;
+  chiesti.length = 0;
+  g.streamCache.clear();
+  g.lib.getStream = async (url) => { chiesti.push(url); g.queue = [d]; return { ...info(), exp: Date.now() + 60_000 }; };
+  await g.prefetch();
+  assert.deepEqual(chiesti, [b.url]);
+  assert.deepEqual(scaricati, []);
+  // Ripeti brano: non c'è niente da preparare
+  g.loop = 'track';
+  chiesti.length = 0;
+  await g.prefetch();
+  assert.deepEqual(chiesti, []);
 });
 
 /** Brano «in riproduzione» con un player finto, per il cambio di volume. */

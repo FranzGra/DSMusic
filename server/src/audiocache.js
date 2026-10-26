@@ -1,10 +1,12 @@
 // Cache audio in RAM (mai su disco: meno scritture, utile su memorie flash che si consumano).
-// Mentre suona un brano si scaricano in memoria il file audio del brano in corso e quello del
-// prossimo, così partenza, spostamento nel brano, cambio di volume e «precedente» non passano dalla
+// Per ogni server restano in memoria al massimo 4 brani: l'ultimo ascoltato, quello in corso e i 2
+// prossimi, così partenza, spostamento nel brano, cambio di volume e «precedente» non passano dalla
 // rete. ffmpeg legge la copia da un piccolo server HTTP solo locale (127.0.0.1, con Range), quindi
 // lo spostamento è immediato come con il link vero.
-// Limiti: budget in MB, numero massimo di brani, durata massima; le voci usate meno di recente
-// escono per prime (LRU), tranne quelle protette (brano in corso e prossimo).
+// Ogni server dice quali brani gli servono (proteggi): quelli che escono da questo insieme vengono
+// tolti subito, e i download non più utili vengono annullati. Limiti: budget in MB (unico per tutti
+// i server), numero di brani per server, durata massima; se manca spazio escono per prime le voci
+// non protette usate meno di recente (LRU), altrimenti il brano nuovo non entra.
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 
@@ -17,9 +19,9 @@ export class AudioCache {
   /**
    * @param {{ budgetMb?: number, maxBrani?: number, maxSec?: number, fetchFn?: typeof fetch, log?: (s: string) => void }} o
    */
-  constructor({ budgetMb = 96, maxBrani = 8, maxSec = 20 * 60, fetchFn = fetch, log = (s) => console.log(s) } = {}) {
+  constructor({ budgetMb = 96, maxBrani = 4, maxSec = 20 * 60, fetchFn = fetch, log = (s) => console.log(s) } = {}) {
     this.budget = Math.max(0, budgetMb) * MB;
-    this.maxBrani = Math.max(1, maxBrani);
+    this.maxBrani = Math.max(1, maxBrani); // per server (proprietario)
     this.maxSec = maxSec;
     this.maxVoce = Math.min(this.budget, MAX_VOCE_BYTES);
     this.fetchFn = fetchFn;
@@ -63,11 +65,28 @@ export class AudioCache {
     return this.voci.has(key);
   }
 
-  /** Il brano in corso e il prossimo di un server: non escono dalla cache per fare spazio. */
+  /**
+   * I brani che servono a un server (precedente, in corso, prossimi): non escono per fare spazio.
+   * Quello che non serve più a nessun server esce subito dalla cache, e i suoi download (in coda o
+   * in corso) vengono annullati: niente banda né RAM sprecate quando la coda cambia.
+   */
   proteggi(proprietario, chiavi) {
     const s = new Set(chiavi.filter(Boolean));
     if (s.size) this.protette.set(proprietario, s);
     else this.protette.delete(proprietario);
+    this.libera();
+  }
+
+  /** Toglie le voci e i download che nessun server protegge. */
+  libera() {
+    for (const key of [...this.voci.keys()]) if (!this.protetta(key)) this.togli(key);
+    this.coda = this.coda.filter((j) => this.protetta(j.key));
+    if (this.inCorso && !this.protetta(this.inCorso.key)) this.inCorso.ctrl.abort();
+  }
+
+  /** Brani al massimo in cache: maxBrani per ogni server che ne usa (almeno maxBrani). */
+  limiteBrani() {
+    return this.maxBrani * Math.max(1, this.protette.size);
   }
 
   protetta(key) {
@@ -81,7 +100,8 @@ export class AudioCache {
    */
   scarica(key, info, opzioni = {}) {
     if (!key) return false;
-    if (this.voci.has(key) || this.inCorso?.key === key || this.coda.some((j) => j.key === key)) return true;
+    const inCorso = this.inCorso?.key === key && !this.inCorso.ctrl.signal.aborted;
+    if (this.voci.has(key) || inCorso || this.coda.some((j) => j.key === key)) return true;
     const v = this.idoneo(info, opzioni);
     if (!v.ok) return false;
     this.coda.push({ key, info: { url: info.url, headers: info.headers || {}, acodec: info.acodec || null, size: info.size || null } });
@@ -117,11 +137,11 @@ export class AudioCache {
   faiSpazio(bytes) {
     if (bytes > this.maxVoce) return false;
     for (const [key] of this.voci) {
-      if (this.usati() + bytes <= this.budget && this.voci.size < this.maxBrani) break;
+      if (this.usati() + bytes <= this.budget && this.voci.size < this.limiteBrani()) break;
       if (this.protetta(key)) continue;
       this.togli(key);
     }
-    return this.usati() + bytes <= this.budget && this.voci.size < this.maxBrani;
+    return this.usati() + bytes <= this.budget && this.voci.size < this.limiteBrani();
   }
 
   async richiesta(url, headers, inizio, fine, signal) {
@@ -163,7 +183,7 @@ export class AudioCache {
       if (r.status !== 206) throw new Error(`HTTP ${r.status}`);
     }
     if (pos !== tot) throw new Error(`file incompleto (${pos}/${tot} byte)`);
-    if (this.inCorso?.ctrl !== ctrl) return false; // svuotata nel frattempo
+    if (this.inCorso?.ctrl !== ctrl || ctrl.signal.aborted) return false; // svuotata o non più utile nel frattempo
     const token = randomUUID();
     const mime = /mime=([^&]+)/.exec(info.url)?.[1] ? decodeURIComponent(/mime=([^&]+)/.exec(info.url)[1]) : 'application/octet-stream';
     this.voci.set(key, { key, buf, size: tot, acodec: info.acodec, mime, token });

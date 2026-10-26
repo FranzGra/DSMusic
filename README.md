@@ -240,8 +240,8 @@ Si mettono nel file `.env` (mai nel repository). Se manca qualcosa di obbligator
 | `YTDLP_PATH`, `FFMPEG_PATH`, `FFPROBE_PATH` | no | Percorsi dei programmi se non sono nel `PATH` |
 | `DATA_DIR` | no | Cartella dei dati salvati (predefinita `data`; in Docker `/app/data`) |
 | `BLOCCO_AUDIO_SECONDI` | no | Secondi senza audio prima di passare al brano dopo (predefinito 30) |
-| `CACHE_AUDIO_MB` | no | RAM massima per i brani in cache (predefinito 96; `0` = spenta) |
-| `CACHE_AUDIO_BRANI` | no | Brani massimi in cache (predefinito 8) |
+| `CACHE_AUDIO_MB` | no | RAM massima per i brani in cache, unica per tutti i server (predefinito 96; `0` = spenta) |
+| `CACHE_AUDIO_BRANI` | no | Brani massimi in cache per server: ultimo ascoltato, in corso e 2 prossimi (predefinito 4) |
 | `CACHE_AUDIO_MAX_MINUTI` | no | Brani più lunghi non vanno in cache (predefinito 20) |
 | `RIPOSO_MINUTI` | no | Minuti senza nessuno in vocale prima di liberare cache e memoria (predefinito 2) |
 | `YTDLP_CONTEMPORANEI` | no | Processi yt-dlp insieme (predefinito 2) |

@@ -48,10 +48,12 @@ export const config = {
   statoCanale: !['0', 'false', 'no'].includes(String(env.STATO_CANALE ?? '').trim().toLowerCase()),
 
   // ---------- leggerezza (macchine con poca RAM) ----------
-  // Cache audio in RAM (mai su disco): brano in corso e prossimo, per partenze, spostamenti e
-  // cambi di volume senza rete. 0 MB = spenta.
+  // Cache audio in RAM (mai su disco): per ogni server l'ultimo brano ascoltato, quello in corso e i
+  // 2 prossimi, per partenze, spostamenti, «precedente» e cambi di volume senza rete. 0 MB = spenta.
+  // Il budget in MB è unico per tutti i server: con brani normali (3-5 min, ~1 MB al minuto) 4 brani
+  // stanno in ~20 MB; se non c'è posto (brani lunghi) l'ultimo da scaricare suona dalla rete.
   cacheAudioMb: numero(env.CACHE_AUDIO_MB, 96),
-  cacheAudioBrani: numero(env.CACHE_AUDIO_BRANI, 8) || 8,
+  cacheAudioBrani: numero(env.CACHE_AUDIO_BRANI, 4) || 4, // per server
   cacheAudioMaxMinuti: numero(env.CACHE_AUDIO_MAX_MINUTI, 20) || 20,
   // Minuti senza il bot in nessun canale vocale prima di liberare cache, link e memoria. 0 = mai.
   riposoMinuti: numero(env.RIPOSO_MINUTI, 2),
