@@ -14,6 +14,7 @@ import Panels, { useLayout } from './Panels.jsx';
 import AddBar from './AddBar.jsx';
 import SearchView, { CloseSearch } from './SearchView.jsx';
 import CampoAnimato from './CampoAnimato.jsx';
+import { suggerimento } from './Suggerimento.jsx';
 import { useCoverColor } from './coverColor.js';
 import VistaRidotta, { useVistaRidotta } from './VistaRidotta.jsx';
 
@@ -88,6 +89,10 @@ export default function App() {
   const noticeTimer = useRef(null);
   const reqSeq = useRef(0);
   const inputRef = useRef(null);
+  // Pillola «Cerca» nella barra del pannello Coda (desktop): al clic si apre la ricerca e il fuoco va nel campo;
+  // alla chiusura il fuoco torna sulla pillola. `focusDopo` dice dove va il fuoco dopo il prossimo disegno.
+  const cercaRef = useRef(null);
+  const focusDopo = useRef(null); // null | 'campo' | 'pillola'
   const scrollRef = useRef(null);
 
   const searchRef = useRef(null);
@@ -375,6 +380,7 @@ export default function App() {
   }, []);
   /** Chiude la ricerca e torna alla coda: campo vuoto, risultati via. */
   const leaveSearch = useCallback((auto = false) => {
+    if (!auto && document.activeElement?.closest?.('.pnl__bar')) focusDopo.current = 'pillola';
     setSearch(null);
     setText('');
     setSearchOpen(false);
@@ -402,7 +408,12 @@ export default function App() {
     },
     [request, leaveSearch],
   );
-  const focusSearch = useCallback(() => inputRef.current?.focus(), []);
+  const focusSearch = useCallback(() => {
+    if (inputRef.current) return inputRef.current.focus();
+    // Desktop a ricerca chiusa: nella barra c'è la pillola, il campo compare dopo l'apertura.
+    focusDopo.current = 'campo';
+    openSearch();
+  }, [openSearch]);
   const retry = useCallback(() => socketRef.current?.retry(), []);
   // Discord non risponde più a questa pagina: l'unico rimedio è chiudere e riaprire l'Activity.
   const [reopenAsked, setReopenAsked] = useState(null); // null | true (chiesto) | false (non riuscito)
@@ -418,6 +429,12 @@ export default function App() {
   const [suoniTab, pickSuoniTab] = useSuoniTab();
   const leaveIn = useLeaveCountdown(state, receivedAt);
   const searching = searchOpen || search !== null;
+  useEffect(() => {
+    const dove = focusDopo.current;
+    if (!dove) return;
+    focusDopo.current = null;
+    (dove === 'campo' ? inputRef : cercaRef).current?.focus();
+  }, [searching]);
   const pokeSearch = useIdleClose(searching, busy || search?.status === 'loading', () => leaveSearch(true));
   // Ogni interazione nel pannello di ricerca (campo nella barra e corpo) fa ripartire il conto.
   const activity = searching
@@ -606,14 +623,15 @@ export default function App() {
             body: <NowPlaying state={state} receivedAt={receivedAt} send={send} layout="auto" bare />,
           };
         case 'coda':
-          // Una sola riga: campo di ricerca corto · Shuffle, Ripeti, Svuota, conteggio.
-          // In ricerca la barra mostra «Chiudi» al posto delle pillole e il corpo solo i risultati.
+          // Una sola riga: «Coda» · conteggio · pillola «Cerca» (al centro esatto della barra) · Shuffle, Ripeti, Svuota.
+          // Il clic sulla pillola apre la ricerca: la barra mostra il campo largo e «Chiudi» al posto delle
+          // pillole, il corpo solo i risultati (queue-head.css).
           return {
             title: 'Coda',
             lead: (
               <CampoAnimato
                 open={searching}
-                className="pnl__search"
+                className={`pnl__search${searching ? '' : ' pnl__search--pill'}`}
                 title=""
                 {...activity}
                 // Dal campo non parte il trascinamento del pannello.
@@ -622,7 +640,23 @@ export default function App() {
                   activity?.onPointerDown();
                 }}
               >
-                {addBar}
+                {searching ? addBar : (
+                  <button
+                    ref={cercaRef}
+                    type="button"
+                    className="cpill cpill--cerca"
+                    onClick={() => {
+                      focusDopo.current = 'campo';
+                      openSearch();
+                    }}
+                    disabled={status !== 'online'}
+                    aria-label="Cerca un brano o incolla un link"
+                    {...suggerimento('Cerca un brano o incolla un link')}
+                  >
+                    <I.Search width={16} height={16} />
+                    <span className="cpill__text">Cerca</span>
+                  </button>
+                )}
               </CampoAnimato>
             ),
             tools: searching

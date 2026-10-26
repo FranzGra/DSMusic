@@ -841,23 +841,7 @@ button { font: inherit; color: inherit; }
 .search--compact .search__clear { width: 28px; height: 28px; margin-right: 3px; }
 .cpill--close .kbd { margin-left: 2px; }
 .search-idle { padding-top: 48px; }
-/* Pannello stretto: prima sparisce il conteggio, poi le pillole restano con la sola icona. */
-@container pnl (max-width: 720px) {
-  .pnl__bar > .qtools__count { display: none; }
-}
-@container pnl (max-width: 540px) {
-  .pnl__bar .cpill .cpill__text, .pnl__bar .cpill .kbd { display: none; }
-  .pnl__bar .cpill { width: 30px; padding: 0; justify-content: center; }
-}
-@container pnl (max-width: 400px) {
-  .pnl__search { flex: 1 1 0; min-width: 0; }
-}
-@container pnl (max-width: 300px) {
-  /* Il titolo resta per i lettori di schermo (anche il pannello si chiama «Coda»). */
-  .pnl__bar > .pnl__title:has(+ .pnl__search) {
-    position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
-  }
-}
+/* Conteggio, pillole e titolo nel pannello stretto: queue-head.css (il titolo «Coda» non si nasconde più). */
 
 /* ---------- riga della coda: maniglia vicina al numero, trascinamento da tutta la riga (Queue.jsx) ---------- */
 /* La colonna del numero parte 4 px dopo la maniglia (la griglia ha 8 px tra le colonne): numeri allineati a

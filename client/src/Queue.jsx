@@ -299,11 +299,12 @@ export function QueueTools({ state, send, bar = false }) {
       <span className="ipill qtools__count" aria-label={`${count}${total ? `, durata ${formatTime(total)}` : ''}`}>
         {count}
         {total > 0 && (
-          <>
-            {' · '}
+          // Durata: nella barra del pannello Coda sparisce per prima quando manca posto (queue-head.css).
+          <span className="qtools__dur">
+            {'· '}
             <I.Clock width={14} height={14} />
             {formatTime(total)}
-          </>
+          </span>
         )}
       </span>
     </>

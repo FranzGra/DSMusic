@@ -39,6 +39,9 @@ const MAX_SIDE = 480;
 const MIN_CENTER = 520;
 // Larghezza minima della colonna con la scheda Lettore, in qualunque colonna sia.
 const MIN_PLAYER = 300;
+// Larghezza minima della colonna con la scheda Coda (anche in ricerca): titolo, pillola «Cerca» al centro e
+// tre pulsanti ci stanno senza toccarsi (queue-head.css).
+const MIN_CODA = 300;
 // Il Lettore è orizzontale quando il suo pannello è più largo che alto e largo almeno così (NowPlaying.jsx).
 // 440: a 1280 px la colonna centrale di Player orizzontale è larga circa 520 px.
 export const H_PLAYER = 440;
@@ -217,8 +220,12 @@ function toV2(raw) {
   return valid1(l) ? fromV1(l, oldSuoniAct()) : null;
 }
 
-/** Minimo della colonna laterale i (0 = sinistra, 1 = destra): più alto se ci sta il Lettore. */
-const sideMin = (cols, i) => (hasTab(cols[i === 0 ? 0 : 2], 'lettore') ? MIN_PLAYER : MIN_SIDE);
+/** Minimo della colonna laterale i (0 = sinistra, 1 = destra): più alto se ci sta il Lettore o la Coda. */
+const sideMin = (cols, i) => {
+  const col = cols[i === 0 ? 0 : 2];
+  if (hasTab(col, 'lettore')) return MIN_PLAYER;
+  return hasTab(col, 'coda') ? MIN_CODA : MIN_SIDE;
+};
 /** Riporta tra minimo e massimo una larghezza salvata fuori misura (vecchia Personalizzata, Lettore spostato di lato). */
 function fit(l) {
   const w = l.w.map((v, i) => Math.round(Math.min(MAX_SIDE, Math.max(sideMin(l.cols, i), v))));
@@ -518,8 +525,8 @@ const wIndex = (c) => (c === 0 ? 0 : 1); // colonna laterale → posto in `w`
 
 /**
  * Larghezze vere delle tre colonne (0 per una colonna vuota): le laterali scelte, la colonna libera (il centro)
- * prende il resto (almeno MIN_CENTER se c'è spazio). La colonna del Lettore non scende mai sotto MIN_PLAYER:
- * di lato non si restringe oltre, al centro le laterali cedono fino a 200 px.
+ * prende il resto (almeno MIN_CENTER se c'è spazio). La colonna del Lettore (MIN_PLAYER) o della Coda (MIN_CODA)
+ * non scende mai sotto il suo minimo: di lato non si restringe oltre, al centro le laterali cedono fino al loro.
  */
 function columnWidths(total, w, cols) {
   const out = [0, 0, 0];
@@ -532,18 +539,19 @@ function columnWidths(total, w, cols) {
   }
   const flex = flexCol(vis);
   const fixed = vis.filter((i) => i !== flex);
-  const player = (i) => hasTab(cols[i], 'lettore');
-  const floor = (i) => (player(i) ? MIN_PLAYER : 200);
-  let ws = fixed.map((i) => Math.max(w[wIndex(i)], player(i) ? MIN_PLAYER : 0));
+  // Minimo di una colonna: 300 col Lettore o la Coda, altrimenti 200 quando manca posto.
+  const floor = (i) => (hasTab(cols[i], 'lettore') ? MIN_PLAYER : hasTab(cols[i], 'coda') ? MIN_CODA : 200);
+  const player = (i) => floor(i) > 200;
+  let ws = fixed.map((i) => Math.max(w[wIndex(i)], player(i) ? floor(i) : 0));
   const sum = () => ws.reduce((a, b) => a + b, 0);
   const maxSides = avail - MIN_CENTER;
   if (sum() > maxSides) {
     const k = Math.max(0, maxSides) / sum();
     ws = ws.map((v, j) => Math.max(floor(fixed[j]), Math.floor(v * k)));
   }
-  if (player(flex) && avail - sum() < MIN_PLAYER) {
-    const over = MIN_PLAYER - (avail - sum());
-    const spare = ws.map((v) => Math.max(0, v - 200));
+  if (player(flex) && avail - sum() < floor(flex)) {
+    const over = floor(flex) - (avail - sum());
+    const spare = ws.map((v, j) => Math.max(0, v - floor(fixed[j])));
     const tot = spare.reduce((a, b) => a + b, 0);
     if (tot > 0) {
       let left = over;
@@ -979,7 +987,7 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
       base[wIndex(i)] = widths[i];
     });
     const others = vis.filter((i) => i !== flex && i !== side).reduce((s, i) => s + widths[i], 0);
-    const min = sideMin(l.cols, wIndex(side)); // 300 se nella colonna c'è il Lettore
+    const min = sideMin(l.cols, wIndex(side)); // 300 se nella colonna c'è il Lettore o la Coda
     const max = Math.max(min, Math.min(MAX_SIDE, total - GAP * (vis.length - 1) - MIN_CENTER - others));
     const wi = wIndex(side);
     setResizing(`col${a}-${b}`);

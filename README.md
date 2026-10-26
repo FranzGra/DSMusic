@@ -1,59 +1,109 @@
-# FranzDSMusic
+<div align="center">
 
-Bot musicale per Discord con un'interfaccia grafica che si apre come **Activity** (l'app web dentro il canale vocale). Solo audio, niente video.
+<h1>FranzDSMusic</h1>
 
-Serve ad ascoltare musica insieme nel canale vocale e a comandare la coda da una vera interfaccia, non solo da chat.
+<p><em>Musica insieme, dentro Discord</em></p>
 
-## Schermate
+<p><b>Bot musicale per Discord con un'interfaccia grafica che si apre come Activity, dentro il canale vocale.</b></p>
+
+<img src="branding/icona_1024.png" alt="Logo FranzDSMusic" width="140">
+
+<p>
+<a href="#funzioni-">Funzioni</a> |
+<a href="#schermate-">Schermate</a> |
+<a href="#avvio-rapido-">Avvio rapido</a> |
+<a href="#configurazione-">Configurazione</a> |
+<a href="#protocollo-websocket-">Protocollo</a>
+</p>
+
+<img src="screenshots/preset-orizzontale.png" alt="FranzDSMusic: player orizzontale" width="90%">
+
+</div>
+
+<details>
+<summary><b>Indice</b></summary>
+
+- [Funzioni 🎵](#funzioni-)
+- [Schermate 🎨](#schermate-)
+- [Avvio rapido 🚀](#avvio-rapido-)
+- [Comandi da chat 💬](#comandi-da-chat-)
+- [Configurazione 🔧](#configurazione-)
+- [Tecnologie 🧰](#tecnologie-)
+- [Struttura 📁](#struttura-)
+- [API HTTP 🌐](#api-http-)
+- [Protocollo WebSocket 🔌](#protocollo-websocket-)
+- [Limiti noti 🚨](#limiti-noti-)
+- [Licenza 📄](#licenza-)
+
+</details>
+
+## Funzioni 🎵
+
+Solo audio, niente video. Si ascolta insieme nel canale vocale e si comanda la coda da una vera interfaccia, non solo da chat.
+
+- 🔗 Aggiunge brani da link YouTube (video e playlist), SoundCloud e tutto ciò che `yt-dlp` sa leggere.
+- 🔎 Cerca su YouTube dal campo in alto: 10 risultati con copertina, canale e durata.
+- 🟢 Legge album e playlist Spotify pubblici (titolo e artista) e cerca ogni brano su YouTube.
+- ➕ Per ogni brano ci sono tre scelte: **in coda**, **riproduci dopo**, **riproduci ora**.
+- ⏯️ Comandi: play/pausa, salta, indietro, stop, rimuovi, riordina trascinando, mischia, ripeti (no / coda / brano), volume, vai a un punto del brano.
+- 🕘 Mostra gli ultimi brani ascoltati e li rimette in coda con un clic.
+- 📚 Libreria di playlist condivisa per server: salva e ricarica la coda.
+- 🔊 **Soundbar**: suoni brevi caricati dall'Activity, che chiunque può far partire nel canale (la musica riprende dopo).
+- 👥 Mostra chi è nel canale vocale e chi sta parlando.
+- 📝 Scrive il brano in corso nello stato del canale vocale.
+- ⚡ Lo stato della coda è per server e arriva in tempo reale a tutti, via WebSocket.
+- 🚪 Il bot esce da solo se il canale resta vuoto o se non suona niente per un po'.
+- 💾 La coda si salva su disco e torna dopo un riavvio (in pausa).
+- ⌨️ Comandi slash e comandi da chat (messaggi nei canali musica o menzione del bot).
+- 🧪 Modalità prova: l'interfaccia funziona nel normale browser, senza Discord e senza audio.
+
+## Schermate 🎨
 
 Tutte prese in modalità anteprima (`?anteprima=1`), con dati finti.
 
-![Player orizzontale](screenshots/preset-orizzontale.png)
-Disposizione predefinita «Player orizzontale»: canale e soundbar a sinistra, lettore e coda al centro, libreria a destra.
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="screenshots/preset-orizzontale.png" alt="Player orizzontale" width="100%"><br>
+      <sub>Disposizione predefinita: canale e soundbar a sinistra, lettore e coda al centro, libreria a destra.</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/preset-verticale.png" alt="Player verticale" width="100%"><br>
+      <sub>Lettore alto a sinistra, coda al centro, canale e schede a destra.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="screenshots/schede-miste.png" alt="Schede miste" width="100%"><br>
+      <sub>Un pannello con più schede (Soundbar, Libreria, Recenti) e la riga strumenti della scheda attiva.</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/trascinamento.png" alt="Trascinamento" width="100%"><br>
+      <sub>Trascinando una linguetta compaiono le zone di rilascio: sopra, sotto o come scheda in un altro pannello.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="screenshots/suggerimento.png" alt="Suggerimenti" width="100%"><br>
+      <sub>Fumetto di suggerimento sui pulsanti.</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/intestazione-angolo.png" alt="Intestazione mobile" width="100%"><br>
+      <sub>L'intestazione si sposta in uno dei quattro angoli dal suo menu.</sub>
+    </td>
+  </tr>
+</table>
 
-![Player verticale](screenshots/preset-verticale.png)
-Disposizione «Player verticale»: lettore alto a sinistra, coda al centro, canale e schede a destra.
+## Avvio rapido 🚀
 
-![Schede miste](screenshots/schede-miste.png)
-Un pannello con più schede (Soundbar, Libreria, Recenti): sotto le linguette c'è la riga strumenti della scheda attiva.
-
-![Trascinamento](screenshots/trascinamento.png)
-Trascinando una linguetta compaiono le zone di rilascio: sopra, sotto o unita come scheda in un altro pannello.
-
-![Suggerimento](screenshots/suggerimento.png)
-Fumetto di suggerimento sui pulsanti.
-
-![Intestazione in un altro angolo](screenshots/intestazione-angolo.png)
-L'intestazione si può spostare in uno dei quattro angoli dal suo menu.
-
-## Riprodurlo a casa tua, in breve
-
-1. Crea l'app nel Discord Developer Portal e invita il bot nel tuo server (sezione *Discord Developer Portal*).
+1. Crea l'app nel Discord Developer Portal e invita il bot nel tuo server (vedi [Discord Developer Portal](#discord-developer-portal)).
 2. Copia `.env.example` in `.env` e inserisci ID, segreto e token dell'app.
-3. Avvia il bot con `docker compose up -d --build` su una macchina sempre accesa (sezione *Installazione e avvio con Docker*).
-4. Rendi raggiungibile il bot in HTTPS: un tuo dominio (es. `tuo-dominio.example`) con un reverse proxy verso la porta 3001, oppure il tunnel di prova (sezione *Indirizzo HTTPS per l'Activity*).
+3. Avvia il bot con `docker compose up -d --build` su una macchina sempre accesa (vedi [Avvio con Docker](#avvio-con-docker)).
+4. Rendi raggiungibile il bot in HTTPS: un tuo dominio (es. `tuo-dominio.example`) con un reverse proxy verso la porta 3001, oppure il tunnel di prova (vedi [Indirizzo HTTPS](#indirizzo-https-per-lactivity)).
 5. Nel Developer Portal metti quel dominio in *Activities, URL Mappings*.
 6. In Discord entra in un canale vocale, apri **Activities** (il razzo) e scegli la tua app.
 
-## Cosa fa
-
-- Aggiunge brani da link YouTube (video e playlist), SoundCloud e tutto ciò che `yt-dlp` sa leggere.
-- Cerca su YouTube dal campo in alto: 10 risultati con copertina, canale e durata.
-- Legge album e playlist Spotify pubblici (titolo e artista) e cerca ogni brano su YouTube.
-- Per ogni brano o link ci sono tre scelte: **in coda**, **riproduci dopo**, **riproduci ora**.
-- Comandi: play/pausa, salta, indietro, stop, rimuovi, riordina trascinando, mischia, ripeti (no / coda / brano), volume, vai a un punto del brano.
-- Mostra gli ultimi brani ascoltati e li rimette in coda con un clic.
-- Libreria di playlist condivisa per server: salva e ricarica la coda.
-- **Soundbar**: suoni brevi caricati dall'Activity, che chiunque può far partire nel canale (la musica riprende dopo).
-- Mostra chi è nel canale vocale e chi sta parlando.
-- Scrive il brano in corso nello stato del canale vocale.
-- Lo stato della coda è per server e arriva in tempo reale a tutti, via WebSocket.
-- Il bot esce da solo se il canale resta vuoto o se non suona niente per un po'.
-- La coda si salva su disco e torna dopo un riavvio (in pausa).
-- Comandi slash e comandi da chat (messaggi nei canali musica o menzione del bot).
-- Modalità prova: l'interfaccia funziona nel normale browser, senza Discord e senza audio.
-
-## Comandi da chat
+## Comandi da chat 💬
 
 Comandi slash: `/play`, `/stop`, `/skip`, `/pausa`, `/coda`, `/vai`, `/precedente`, `/suono`.
 
@@ -73,42 +123,9 @@ Il bot legge anche i messaggi (serve il **Message Content Intent**):
 - Riscontro: una reazione e una risposta breve con il titolo. Gli errori arrivano come risposta.
 - I messaggi degli altri bot vengono ignorati.
 
-## Tecnologie
+## Configurazione 🔧
 
-| Parte | Cosa uso |
-|---|---|
-| Server | Node.js 22 o più recente, Express, `ws` (WebSocket) |
-| Bot | `discord.js` e `@discordjs/voice` |
-| Audio | `yt-dlp` per i link, `ffmpeg` per codificare in Opus |
-| Interfaccia | React, Vite, `@discord/embedded-app-sdk` |
-| Contenitori | Docker (immagini amd64 e arm64) |
-| Tunnel (facoltativo) | `cloudflared` |
-
-## Struttura delle cartelle
-
-| Percorso | Contenuto |
-|---|---|
-| `server/src/index.js` | Express e WebSocket (`/ws`), API HTTP, serve l'interfaccia compilata |
-| `server/src/music.js` | Coda e stato per server, riproduzione |
-| `server/src/bot.js` | Bot Discord, canali vocali e testuali, registrazione dei comandi slash |
-| `server/src/commands.js` | Comandi slash e comandi da chat |
-| `server/src/resolver.js` | Link e ricerche con `yt-dlp`, Spotify |
-| `server/src/audio.js` | `ffmpeg` e `yt-dlp` verso Opus per Discord |
-| `server/src/audiocache.js` | Cache dei brani in RAM |
-| `server/src/store.js` | Salvataggio della coda su disco |
-| `server/src/playlists.js` | Libreria di playlist per server |
-| `server/src/soundbar.js`, `suoni.js` | Player e libreria dei suoni brevi |
-| `server/src/statocanale.js` | Stato del canale vocale |
-| `server/src/auth.js` | Verifica di chi si collega |
-| `server/src/heartbeat.js` | Battito del WebSocket |
-| `server/test/` | Prove automatiche (`npm test`) |
-| `client/src/` | Interfaccia React |
-| `scripts/` | Tunnel `cloudflared` e script per leggerne l'indirizzo |
-| `branding/` | Icona e copertina dell'Activity |
-| `screenshots/` | Schermate usate in questo README |
-| `Dockerfile`, `docker-compose.yml` | Immagine del bot e servizi `bot` e `tunnel` |
-
-## Requisiti
+### Requisiti
 
 | Programma | Note |
 |---|---|
@@ -118,7 +135,7 @@ Il bot legge anche i messaggi (serve il **Message Content Intent**):
 | Docker | solo per l'avvio con Docker; dentro ci sono già Node, yt-dlp e ffmpeg |
 | cloudflared | solo per il tunnel senza Docker |
 
-## Discord Developer Portal
+### Discord Developer Portal
 
 Portale: <https://discord.com/developers/applications>
 
@@ -132,7 +149,7 @@ Portale: <https://discord.com/developers/applications>
 | 6 | **Activities, URL Mappings** | Prefisso `/` verso `tuo-dominio.example` (senza `https://`): l'indirizzo pubblico del tuo server |
 | 7 | **OAuth2, URL Generator** | Scope `bot` e `applications.commands`. Permessi **Connect**, **Speak**, **Send Messages**, **Read Message History**, **Add Reactions** (più **Set Voice Channel Status** per lo stato del canale). Apri il link e invita il bot nel tuo server |
 
-## Indirizzo HTTPS per l'Activity
+### Indirizzo HTTPS per l'Activity
 
 L'Activity ha bisogno di un indirizzo HTTPS pubblico raggiungibile da Discord. Due strade:
 
@@ -143,13 +160,15 @@ L'Activity ha bisogno di un indirizzo HTTPS pubblico raggiungibile da Discord. D
 
 Esempio minimo con Caddy (`Caddyfile`): `tuo-dominio.example { reverse_proxy 127.0.0.1:3001 }`.
 
-## Installazione e avvio con Docker
+### Avvio con Docker
 
 Serve solo Docker. Il `.env` resta fuori dall'immagine: lo legge `docker compose` all'avvio.
 
 ```bash
+```bash
 cp .env.example .env     # poi compila i valori
 docker compose up -d --build
+```
 ```
 
 | Cosa | Comando |
@@ -170,14 +189,16 @@ docker compose up -d --build
 - Ruoli Soundbar: imposta `SOUNDBAR_RUOLO_ID` nel `.env` (vedi sotto); `docker-compose.yml` lo legge da lì.
 - Impostazioni solo tue (porte, limiti, variabili): mettile in un `docker-compose.override.yml`, che Docker Compose unisce da solo ed è escluso da git.
 
-## Installazione e sviluppo (senza Docker)
+### Sviluppo senza Docker
 
+```bash
 ```bash
 npm install
 cp .env.example .env     # poi compila i valori
 npm run build            # compila l'interfaccia
 npm start                # server e bot su http://localhost:3001
 npm run tunnel           # in un secondo terminale: mostra il dominio da mettere nell'URL mapping
+```
 ```
 
 Poi in Discord: entra in un canale vocale, apri **Activities** (il razzo) e scegli la tua app.
@@ -191,13 +212,15 @@ Poi in Discord: entra in un canale vocale, apri **Activities** (il razzo) e sceg
 Per provare una build accanto al server vero, su un'altra porta:
 
 ```bash
+```bash
 cd client && npx vite build --outDir dist-prova && cd ..
 PORT=3002 MODALITA_PROVA=1 DISCORD_BOT_TOKEN= DISCORD_CLIENT_SECRET= CLIENT_DIST=client/dist-prova npm start
+```
 ```
 
 Le variabili scritte nel comando valgono più di quelle del `.env`.
 
-## Variabili d'ambiente
+### Variabili d'ambiente
 
 Si mettono nel file `.env` (mai nel repository). Se manca qualcosa di obbligatorio, `npm start` si ferma e dice cosa aggiungere.
 
@@ -227,7 +250,42 @@ Si mettono nel file `.env` (mai nel repository). Se manca qualcosa di obbligator
 | `SOUNDBAR_MAX_MB` | no | Dimensione massima del file caricato (predefinita 2) |
 | `CLIENT_DIST` | no | Cartella dell'interfaccia compilata (predefinita `client/dist`) |
 
-## API HTTP
+## Tecnologie 🧰
+
+| Parte | Cosa uso |
+|---|---|
+| Server | Node.js 22 o più recente, Express, `ws` (WebSocket) |
+| Bot | `discord.js` e `@discordjs/voice` |
+| Audio | `yt-dlp` per i link, `ffmpeg` per codificare in Opus |
+| Interfaccia | React, Vite, `@discord/embedded-app-sdk` |
+| Contenitori | Docker (immagini amd64 e arm64) |
+| Tunnel (facoltativo) | `cloudflared` |
+
+## Struttura 📁
+
+| Percorso | Contenuto |
+|---|---|
+| `server/src/index.js` | Express e WebSocket (`/ws`), API HTTP, serve l'interfaccia compilata |
+| `server/src/music.js` | Coda e stato per server, riproduzione |
+| `server/src/bot.js` | Bot Discord, canali vocali e testuali, registrazione dei comandi slash |
+| `server/src/commands.js` | Comandi slash e comandi da chat |
+| `server/src/resolver.js` | Link e ricerche con `yt-dlp`, Spotify |
+| `server/src/audio.js` | `ffmpeg` e `yt-dlp` verso Opus per Discord |
+| `server/src/audiocache.js` | Cache dei brani in RAM |
+| `server/src/store.js` | Salvataggio della coda su disco |
+| `server/src/playlists.js` | Libreria di playlist per server |
+| `server/src/soundbar.js`, `suoni.js` | Player e libreria dei suoni brevi |
+| `server/src/statocanale.js` | Stato del canale vocale |
+| `server/src/auth.js` | Verifica di chi si collega |
+| `server/src/heartbeat.js` | Battito del WebSocket |
+| `server/test/` | Prove automatiche (`npm test`) |
+| `client/src/` | Interfaccia React |
+| `scripts/` | Tunnel `cloudflared` e script per leggerne l'indirizzo |
+| `branding/` | Icona e copertina dell'Activity |
+| `screenshots/` | Schermate usate in questo README |
+| `Dockerfile`, `docker-compose.yml` | Immagine del bot e servizi `bot` e `tunnel` |
+
+## API HTTP 🌐
 
 | Percorso | Cosa fa |
 |---|---|
@@ -237,7 +295,7 @@ Si mettono nel file `.env` (mai nel repository). Se manca qualcosa di obbligator
 | `POST /api/diag` | Diagnostica dell'aggancio dell'Activity |
 | `GET /api/health` | Stato del servizio (usato dall'healthcheck di Docker) |
 
-## Protocollo WebSocket
+## Protocollo WebSocket 🔌
 
 L'interfaccia parla con il server su `/ws`, con messaggi JSON. Il primo messaggio è `hello` (con i dati di Discord), il server risponde con `welcome` e poi manda `state`.
 
@@ -257,7 +315,7 @@ L'interfaccia parla con il server su `/ws`, con messaggi JSON. Il primo messaggi
 | client, server | `playlistSave`, `playlistLoad`, `playlistRename`, `playlistDelete`, `playlistResult`, `playlists` | Libreria di playlist |
 | client, server | `suonoBiglietto`, `suona`, `suonoFerma`, `suonoRinomina`, `suonoVolume`, `suonoElimina`, `suonoResult`, `suoni` | Soundbar. Il caricamento è una richiesta HTTP con un biglietto monouso chiesto prima sul WebSocket |
 
-## Limiti noti
+## Limiti noti 🚨
 
 - Dopo un riavvio la coda torna, ma il brano riparte dall'inizio.
 - Se YouTube non dà link leggibili, parte un ripiego `yt-dlp` e `ffmpeg` più lento (fino a ~30 s al primo audio).
@@ -265,3 +323,7 @@ L'interfaccia parla con il server su `/ws`, con messaggi JSON. Il primo messaggi
 - YouTube a volte blocca `yt-dlp`: tienilo aggiornato.
 - Prototipo: chiunque abbia l'Activity aperta nel server può comandare la musica. Il server controlla solo che l'utente sia membro del server (la Soundbar ha controlli di ruolo).
 - Dentro Discord l'interfaccia lascia 72 px liberi in basso, dove Discord mette la fila dei partecipanti.
+
+## Licenza 📄
+
+Rilasciato sotto licenza **GNU AGPL v3**. Il testo completo è nel file [LICENSE](LICENSE).

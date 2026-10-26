@@ -1,41 +1,62 @@
-/* Testata del pannello Coda (App.jsx → Panels.jsx → .pnl__bar).
-   Ordine a video, da sinistra: maniglia · «Coda» · «190 brani · ⏱ 11:05:28» · ricerca corta (al centro dello
-   spazio libero) · Shuffle · Ripeti · Svuota. Nel DOM i pulsanti vengono prima del conteggio: l'ordine lo
-   fa `order`, così la tastiera passa dalla ricerca ai pulsanti. Sta in un file a parte e vince su styles.css
-   per specificità. Il telefono (layout-m) non usa questa barra. */
+/* Testata del pannello Coda (App.jsx → Panels.jsx → .pnl__bar), tavola «Coda stretta» dell'artifact Design.
+   Da sinistra: «Coda» (sempre visibile) · conteggio · pillola «Cerca» al centro esatto della barra · Shuffle ·
+   Ripeti · Svuota (sola icona). Il pannello non scende sotto 300 px (Panels.jsx, MIN_CODA). Nel DOM i pulsanti
+   vengono prima del conteggio: l'ordine lo fa `order`, così la tastiera passa dalla ricerca ai pulsanti.
+   Questo file arriva prima di styles.css: vince per specificità. Il telefono (layout-m) non usa questa barra. */
 .pnl__bar > .pnl__grip, .pnl__bar > .pnl__title { flex: none; }
+.pnl__bar:has(> .pnl__search) { position: relative; }
 .pnl__bar > .ipill.qtools__count { order: 1; display: inline-flex; margin-left: 0; }
 .pnl__bar > .pnl__search { order: 2; }
 .pnl__bar > .cpill, .pnl__bar > .cclear { order: 3; }
+.qtools__dur { display: inline-flex; align-items: center; gap: 6px; }
 
-/* Campo corto: 200 px, tra 140 e 220; ai lati lo spazio libero si divide in parti uguali. */
-.pnl__bar > .pnl__search {
-  flex: 0 1 200px; min-width: 140px; max-width: 220px; margin-inline: auto; cursor: auto;
+/* Ricerca chiusa: il contenitore non occupa posto, la pillola sta al centro della larghezza della barra
+   (non dello spazio libero); Shuffle e gli altri a destra. */
+.pnl__bar > .pnl__search.pnl__search--pill { flex: none; width: 0; min-width: 0; max-width: none; margin: 0; }
+.pnl__bar > .pnl__search--pill + .cpill { margin-left: auto; }
+.pnl__bar .cpill.cpill--cerca {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: auto; height: 32px; padding: 0 10px 0 8px; gap: 6px; justify-content: center;
+  color: var(--text); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
 }
+.pnl__bar .cpill.cpill--cerca .cpill__text { display: inline; }
+.pnl__bar .cpill.cpill--cerca:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.97); }
 
-/* Ricerca aperta: il campo riempie lo spazio e si legge cosa si scrive; a destra resta «Chiudi». */
-.pnl__bar:has(> .cpill--close) > .pnl__search {
-  flex: 1 1 0; min-width: 0; max-width: none; margin-inline: 0;
-}
+/* Shuffle, Ripeti, Svuota: 32 × 32, sola icona (il nome resta nell'aria-label e nel suggerimento). */
+.pnl__bar > .cpill:not(.cpill--close), .pnl__bar > .cclear > .cpill { width: 32px; height: 32px; padding: 0; justify-content: center; }
+.pnl__bar > .cpill:not(.cpill--close) .cpill__text, .pnl__bar > .cclear > .cpill .cpill__text { display: none; }
+.pnl__bar > .cpill.cpill--close { height: 32px; padding: 0 10px 0 8px; }
 
-/* Pannello più stretto: prima i pulsanti restano con la sola icona (non «Chiudi»), poi sparisce il conteggio,
-   infine il campo diventa una lente. */
-@container pnl (max-width: 679px) {
-  .pnl__bar .cpill:not(.cpill--close) .cpill__text { display: none; }
-  .pnl__bar .cpill:not(.cpill--close) { width: 30px; padding: 0; justify-content: center; }
+/* Ricerca aperta: il campo riempie lo spazio tra il titolo e «Chiudi». */
+.pnl__bar:has(> .cpill--close) > .pnl__search { flex: 1 1 0; min-width: 0; max-width: none; margin-inline: 0; }
+
+/* Conteggio: c'è solo se avanza posto (almeno 8 px prima della pillola); prima cede la durata, poi tutto.
+   Soglie misurate nell'anteprima sul caso più lungo, «190 brani · 11:05:28»: con il pannello largo 380 px ci
+   sta «N brani», da 550 px anche la durata. Misure del pannello intero (il contenitore è poco più stretto, per il bordo). */
+@container pnl (max-width: 548px) {
+  .pnl__bar > .ipill.qtools__count .qtools__dur { display: none; }
 }
-@container pnl (max-width: 519px) {
+@container pnl (max-width: 378px) {
   .pnl__bar > .ipill.qtools__count { display: none; }
 }
-/* Sotto 340 px il campo non ha più 140 px: resta la lente. Il clic cade sull'input, trasparente e
-   disteso su tutta la lente, quindi apre comunque la ricerca a tutto pannello. */
-@container pnl (max-width: 339px) {
-  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search {
-    flex: none; width: 34px; min-width: 34px; max-width: 34px; margin-inline: auto 0; position: relative;
-  }
-  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search .search { width: 34px; overflow: hidden; }
-  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search .search input {
-    position: absolute; inset: 0; width: 100%; padding: 0; opacity: 0; cursor: pointer;
-  }
-  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search .search__clear { display: none; }
+@container pnl (max-width: 539px) {
+  .pnl__bar .cpill--close .kbd { display: none; }
+}
+/* Pannello stretto: con la pillola centrata le tre icone scendono a 28 px, 4 px tra loro. */
+@container pnl (max-width: 359px) {
+  .pnl__bar:has(> .pnl__search--pill) { gap: 4px; }
+  .pnl__bar > .pnl__search--pill ~ .cpill, .pnl__bar > .pnl__search--pill ~ .cclear > .cpill { width: 28px; height: 28px; }
+  .pnl__bar .cpill.cpill--cerca { padding: 0 8px 0 7px; gap: 5px; }
+}
+/* Con il menu del pannello (qualche scheda chiusa) a destra c'è un pulsante in più: le icone scendono a 28 px
+   già sotto 410 px e, sotto 346 px, la pillola resta con la sola lente (il nome resta nell'aria-label). */
+@container pnl (max-width: 407px) {
+  .pnl__bar:has(> .pnl__search--pill):has(> .pnl__menubtn) { gap: 4px; }
+  .pnl__bar:has(> .pnl__menubtn) > .pnl__search--pill ~ .cpill,
+  .pnl__bar:has(> .pnl__menubtn) > .pnl__search--pill ~ .cclear > .cpill,
+  .pnl__bar:has(> .pnl__search--pill) > .pnl__menubtn { width: 28px; height: 28px; }
+}
+@container pnl (max-width: 343px) {
+  .pnl__bar:has(> .pnl__menubtn) .cpill.cpill--cerca { width: 28px; height: 28px; padding: 0; }
+  .pnl__bar:has(> .pnl__menubtn) .cpill.cpill--cerca .cpill__text { display: none; }
 }

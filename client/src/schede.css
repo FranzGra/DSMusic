@@ -69,10 +69,11 @@
 /* ---------- riga strumenti sotto le linguette ---------- */
 .pnl__bar--tools { cursor: default; touch-action: auto; user-select: auto; border-bottom: 1px solid var(--border); }
 .pnl__bar--tools > .ipill:only-child { margin-left: auto; }
-/* Coda: campo a sinistra, pulsanti e conteggio a destra (tavola, figura 2). */
+/* Coda: conteggio a sinistra (al posto del titolo, che qui è la linguetta), pillola «Cerca» al centro, pulsanti
+   a destra; con la ricerca aperta il campo parte da sinistra (queue-head.css). */
 .pnl__bar--tools > .pnl__search { order: 1; margin-inline: 0 auto; }
 .pnl__bar--tools > .cpill, .pnl__bar--tools > .cclear { order: 2; }
-.pnl__bar--tools > .ipill.qtools__count { order: 3; }
+.pnl__bar--tools > .ipill.qtools__count { order: 0; }
 
 /* ---------- trascinamento delle schede ---------- */
 .pnl__drop {
