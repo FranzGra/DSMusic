@@ -1,0 +1,40 @@
+/* Modalità Ambiente (ambiente.js): dietro i pannelli un gradiente soffuso fatto con i 3 colori della copertina.
+   Un solo livello fisso (il fondo di .app, alto quanto la finestra), tre gradienti radiali, nessun blur e
+   nessun movimento. I colori --amb1/2/3 e l'intensità --amb-k sono @property (tokens.css): al cambio brano
+   il browser li sfuma da solo in 2 s (styles.css, .app); con prefers-reduced-motion il cambio è immediato.
+   Spenta: tutto come prima (velo --tint al 5 %). */
+.app.amb {
+  --a1: color-mix(in srgb, var(--amb1) var(--amb-k), transparent);
+  --a2: color-mix(in srgb, var(--amb2) var(--amb-k), transparent);
+  --a3: color-mix(in srgb, var(--amb3) calc(var(--amb-k) * 0.85), transparent);
+  /* Pannelli opachi e pieni, senza velo: leggibilità identica a prima. Menu e avvisi (--card-2) sempre opachi. */
+  --bg: #0f0f0f;
+  --card: #191919;
+  --card-2: #242424;
+  background:
+    radial-gradient(75% 90% at 5% 0%, var(--a1) 0%, color-mix(in srgb, var(--a1) 55%, transparent) 40%, transparent 85%),
+    radial-gradient(70% 85% at 100% 20%, var(--a2) 0%, color-mix(in srgb, var(--a2) 55%, transparent) 40%, transparent 85%),
+    radial-gradient(90% 70% at 50% 110%, var(--a3) 0%, color-mix(in srgb, var(--a3) 55%, transparent) 40%, transparent 85%),
+    #0f0f0f;
+}
+.app.amb .ptabs { background: #141414; }
+
+/* Pannelli traslucidi (scelta nel menu): 70 % di opacità, senza sfocatura dietro (backdrop-filter costa troppo). */
+.app.amb--glass { --card: rgb(25 25 25 / 0.70); }
+.app.amb--glass .pnl, .app.amb--glass .card { border-color: rgb(255 255 255 / 0.09); }
+.app.amb--glass .ptabs { background: rgb(20 20 20 / 0.70); }
+
+/* Testate fisse (coda, ricerca, piede ricerca): stesso colore del pannello. Sopra un pannello già traslucido il loro
+   fondo si sommerebbe e verrebbe più scuro, quindi ridisegnano velo + gradienti dello sfondo (fissi alla finestra,
+   come il fondo di .app: tenere i 3 gradienti uguali a quelli di .app.amb). Risultato opaco (coprono i brani che
+   scorrono) e identico al pannello. */
+.app.amb--glass {
+  --amb-g:
+    radial-gradient(75% 90% at 5% 0%, var(--a1) 0%, color-mix(in srgb, var(--a1) 55%, transparent) 40%, transparent 85%),
+    radial-gradient(70% 85% at 100% 20%, var(--a2) 0%, color-mix(in srgb, var(--a2) 55%, transparent) 40%, transparent 85%),
+    radial-gradient(90% 70% at 50% 110%, var(--a3) 0%, color-mix(in srgb, var(--a3) 55%, transparent) 40%, transparent 85%);
+}
+.app.amb--glass :is(.qhead, .search-head, .sb__foot) {
+  background: linear-gradient(var(--card), var(--card)), var(--amb-g), #0f0f0f;
+  background-attachment: fixed;
+}

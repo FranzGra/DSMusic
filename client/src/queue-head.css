@@ -8,49 +8,87 @@
 .pnl__bar > .ipill.qtools__count { order: 1; display: inline-flex; margin-left: 0; }
 .pnl__bar > .pnl__search { order: 2; }
 .pnl__bar > .cpill, .pnl__bar > .cclear { order: 3; }
-.qtools__dur { display: inline-flex; align-items: center; gap: 6px; }
+.qtools__dur { display: inline-flex; align-items: center; gap: 4px; }
+.qtools__clock { flex: none; margin-right: 2px; }
+/* Durata «11h23m22s»: lettere più piccole e più tenui, 1 px dopo ogni lettera tranne l'ultima (tavola «Pulsanti con testo»). */
+.qtools__u { font-size: var(--fs-unit); opacity: 0.7; letter-spacing: 0; margin-right: 1px; }
+.qtools__u:last-child { margin-right: 0; }
 
-/* Ricerca chiusa: il contenitore non occupa posto, la pillola sta al centro della larghezza della barra
-   (non dello spazio libero); Shuffle e gli altri a destra. */
-.pnl__bar > .pnl__search.pnl__search--pill { flex: none; width: 0; min-width: 0; max-width: none; margin: 0; }
-.pnl__bar > .pnl__search--pill + .cpill { margin-left: auto; }
+/* Ricerca chiusa: il contenitore prende tutto lo spazio libero tra il titolo/conteggio e i pulsanti; la pillola
+   ci sta dentro, assoluta. Senza JS è al centro dello spazio libero; CampoAnimato.jsx (centraCerca) la sposta
+   con --cerca-dx verso il centro esatto della barra finché ai due lati resta posto, poi torna con continuità
+   al centro dello spazio libero (niente soglie, niente salti, mai sopra i pulsanti).
+   Posizione con la proprietà `translate`, non con `transform`: .cpill ha una transizione su transform
+   (microanimazioni.css, pressione) che faceva scivolare la pillola in alto o in basso ai cambi di posizione;
+   `translate` non ha transizione e la pressione (transform: scale) resta com'era. */
+.pnl__bar > .pnl__search.pnl__search--pill { position: relative; flex: 1 1 0; width: auto; min-width: 0; max-width: none; margin: 0; align-self: stretch; }
 .pnl__bar .cpill.cpill--cerca {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: auto; height: 32px; padding: 0 10px 0 8px; gap: 6px; justify-content: center;
+  position: absolute; left: 50%; top: 50%; translate: calc(-50% + var(--cerca-dx, 0px)) -50%;
+  width: auto; height: 32px; padding: 0 16px 0 14px; gap: 6px; justify-content: center;
   color: var(--text); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
 }
 .pnl__bar .cpill.cpill--cerca .cpill__text { display: inline; }
-.pnl__bar .cpill.cpill--cerca:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.97); }
 
-/* Shuffle, Ripeti, Svuota: 32 × 32, sola icona (il nome resta nell'aria-label e nel suggerimento). */
-.pnl__bar > .cpill:not(.cpill--close), .pnl__bar > .cclear > .cpill { width: 32px; height: 32px; padding: 0; justify-content: center; }
-.pnl__bar > .cpill:not(.cpill--close) .cpill__text, .pnl__bar > .cclear > .cpill .cpill__text { display: none; }
+/* Mescola, Ripeti, Svuota (tavola «Pulsanti con testo»): con posto icona e testo, alti 32 px. Si stringono a
+   gradini e diventano cerchi 32 × 32 con la sola icona (il nome resta nell'aria-label e nel suggerimento, che
+   compare solo così). Ordine: Ripeti (cede1) sotto 776 px di pannello, Mescola (cede2) sotto 600, Svuota (cede3)
+   sotto 480. Lo stato di Ripeti si vede anche dalla sola icona: verde = coda, icona con «1» = brano.
+   Soglie misurate nell'anteprima: ogni gradino scatta quando «Cerca», al centro esatto, ha ancora almeno 20 px
+   per lato (8 di gap + CERCA_AGIO di CampoAnimato.jsx) anche con «Ripeti: brano», così cambiare gradino non la
+   sposta mai (la tavola diceva 750 · 570 · 450). Contenitore = pannello − 2 px di bordo. */
+.pnl__bar > .cpill:not(.cpill--close), .pnl__bar > .cclear > .cpill { height: 32px; min-width: 32px; padding: 0 12px 0 10px; justify-content: center; }
+@container pnl (max-width: 773.98px) {
+  .pnl__bar > .cpill.cpill--cede1 { width: 32px; padding: 0; }
+  .pnl__bar > .cpill--cede1 .cpill__text { display: none; }
+}
+@container pnl (max-width: 597.98px) {
+  .pnl__bar > .cpill.cpill--cede2 { width: 32px; padding: 0; }
+  .pnl__bar > .cpill--cede2 .cpill__text { display: none; }
+}
+@container pnl (max-width: 477.98px) {
+  .pnl__bar > .cclear > .cpill.cpill--cede3 { width: 32px; padding: 0; }
+  .pnl__bar > .cclear > .cpill--cede3 .cpill__text { display: none; }
+}
+/* Con il menu ≡ nella barra (scheda sola, qualche scheda chiusa) c'è un pulsante in più a destra:
+   le tre soglie salgono a 846 · 670 · 548 px (misurate come sopra). */
+@container pnl (max-width: 843.98px) {
+  .pnl__bar:has(> .pnl__menubtn) > .cpill.cpill--cede1 { width: 32px; padding: 0; }
+  .pnl__bar:has(> .pnl__menubtn) > .cpill--cede1 .cpill__text { display: none; }
+}
+@container pnl (max-width: 667.98px) {
+  .pnl__bar:has(> .pnl__menubtn) > .cpill.cpill--cede2 { width: 32px; padding: 0; }
+  .pnl__bar:has(> .pnl__menubtn) > .cpill--cede2 .cpill__text { display: none; }
+}
+@container pnl (max-width: 545.98px) {
+  .pnl__bar:has(> .pnl__menubtn) > .cclear > .cpill.cpill--cede3 { width: 32px; padding: 0; }
+  .pnl__bar:has(> .pnl__menubtn) > .cclear > .cpill--cede3 .cpill__text { display: none; }
+}
 .pnl__bar > .cpill.cpill--close { height: 32px; padding: 0 10px 0 8px; }
 
 /* Ricerca aperta: il campo riempie lo spazio tra il titolo e «Chiudi». */
 .pnl__bar:has(> .cpill--close) > .pnl__search { flex: 1 1 0; min-width: 0; max-width: none; margin-inline: 0; }
 
-/* Conteggio: c'è solo se avanza posto (almeno 8 px prima della pillola); prima cede la durata, poi tutto.
-   Soglie misurate nell'anteprima sul caso più lungo, «190 brani · 11:05:28»: con il pannello largo 380 px ci
-   sta «N brani», da 550 px anche la durata. Misure del pannello intero (il contenitore è poco più stretto, per il bordo). */
-@container pnl (max-width: 548px) {
+/* Conteggio (scheda sola, accanto a «Coda»): prima cede la durata, poi tutto. Soglie misurate nell'anteprima
+   perché «Cerca» resti al centro esatto con 20 px liberi a sinistra quando il conteggio cambia: durata da 622 px
+   di pannello, «N brani» da 402. Misure del pannello intero (il contenitore è 2 px più stretto, per il bordo). */
+@container pnl (max-width: 619.98px) {
   .pnl__bar > .ipill.qtools__count .qtools__dur { display: none; }
 }
-@container pnl (max-width: 378px) {
+@container pnl (max-width: 399.98px) {
   .pnl__bar > .ipill.qtools__count { display: none; }
 }
 @container pnl (max-width: 539px) {
   .pnl__bar .cpill--close .kbd { display: none; }
 }
-/* Pannello stretto: con la pillola centrata le tre icone scendono a 28 px, 4 px tra loro. */
-@container pnl (max-width: 359px) {
+/* Pannello stretto: sotto 376 px le tre icone scendono a 28 px, 4 px tra loro (prima che «Cerca» lasci il centro esatto). */
+@container pnl (max-width: 373.98px) {
   .pnl__bar:has(> .pnl__search--pill) { gap: 4px; }
   .pnl__bar > .pnl__search--pill ~ .cpill, .pnl__bar > .pnl__search--pill ~ .cclear > .cpill { width: 28px; height: 28px; }
-  .pnl__bar .cpill.cpill--cerca { padding: 0 8px 0 7px; gap: 5px; }
+  .pnl__bar .cpill.cpill--cerca { gap: 5px; }
 }
 /* Con il menu del pannello (qualche scheda chiusa) a destra c'è un pulsante in più: le icone scendono a 28 px
-   già sotto 410 px e, sotto 346 px, la pillola resta con la sola lente (il nome resta nell'aria-label). */
-@container pnl (max-width: 407px) {
+   già sotto 444 px e, sotto 346 px, la pillola resta con la sola lente (il nome resta nell'aria-label). */
+@container pnl (max-width: 441.98px) {
   .pnl__bar:has(> .pnl__search--pill):has(> .pnl__menubtn) { gap: 4px; }
   .pnl__bar:has(> .pnl__menubtn) > .pnl__search--pill ~ .cpill,
   .pnl__bar:has(> .pnl__menubtn) > .pnl__search--pill ~ .cclear > .cpill,
@@ -63,10 +101,11 @@
 
 /* Più schede (riga strumenti sotto le linguette, Panels.jsx): qui il titolo è la linguetta e il ≡ sta nella riga
    delle linguette, quindi le soglie qui sopra (pensate per «Coda» + conteggio) non valgono. Il conteggio resta
-   sempre: a 300 px (MIN_CODA) «N brani» finisce a ~90 px e la pillola «Cerca», sempre al centro, parte a ~115 px.
-   La durata torna quando ci sta il caso più lungo, «190 brani · 11:05:28» (~163 px), con 8 px prima della pillola:
-   12 + 163 + 8 + metà pillola (36 px) = 219 px di mezza riga, cioè contenitore da 438 px in su (pannello da ~440). */
+   sempre: a 300 px (MIN_CODA) «N brani», e «Cerca» scivola verso il centro dello spazio libero (CampoAnimato).
+   La durata (tavola «Pulsanti con testo», ritocco di Franz) se ne va insieme al testo di Mescola, sotto 600 px
+   di pannello: a 520 e 420 px resta solo «N brani». */
 .pnl__bar.pnl__bar--tools > .ipill.qtools__count { display: inline-flex; flex: none; white-space: nowrap; }
-@container pnl (min-width: 438px) {
-  .pnl__bar.pnl__bar--tools > .ipill.qtools__count .qtools__dur { display: inline-flex; }
+.pnl__bar.pnl__bar--tools > .ipill.qtools__count .qtools__dur { display: inline-flex; }
+@container pnl (max-width: 597.98px) {
+  .pnl__bar.pnl__bar--tools > .ipill.qtools__count .qtools__dur { display: none; }
 }

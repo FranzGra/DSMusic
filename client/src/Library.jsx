@@ -578,7 +578,9 @@ function PlaylistRow({ p, editable, active, setActive, flash, loading, busyAny, 
             onClick={() => (queueLen > 0 ? setActive({ id: p.id, mode: 'replace' }) : onLoad(p, 'replace'))}
           >
             {loading === 'replace' ? <span className="spinner spinner--pill" aria-hidden="true" /> : <I.Swap width={16} height={16} />}
-            Sostituisci la coda
+            {/* Playlist stretta: «Sostituisci» su una riga, sempre con testo (styles.css, .pl__acts). */}
+            <span className="pl__txt pl__txt--lungo">Sostituisci la coda</span>
+            <span className="pl__txt pl__txt--corto">Sostituisci</span>
           </button>
         </div>
       )}

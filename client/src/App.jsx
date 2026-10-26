@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { connect, insideDiscord } from './connection.js';
 import { STUCK_AFTER_MS, statusLabel as labelFor, stuckMessage } from './session.js';
 import NowPlaying, { useLeaveCountdown } from './NowPlaying.jsx';
@@ -15,7 +15,8 @@ import AddBar from './AddBar.jsx';
 import SearchView, { CloseSearch } from './SearchView.jsx';
 import CampoAnimato from './CampoAnimato.jsx';
 import { suggerimento } from './Suggerimento.jsx';
-import { useCoverColor } from './coverColor.js';
+import { useCoverColors } from './coverColor.js';
+import { useAmbiente } from './ambiente.js';
 import VistaRidotta, { useVistaRidotta } from './VistaRidotta.jsx';
 
 // Dentro Discord in basso c'è la fila dei partecipanti: la barra del lettore resta sopra.
@@ -106,7 +107,9 @@ export default function App() {
   const stateRef = useRef(null);
   stateRef.current = state;
 
-  const tint = useCoverColor(state?.current?.thumbnail);
+  const { tint, palette } = useCoverColors(state?.current?.thumbnail);
+  // Modalità Ambiente (menu del titolo, sezione «Aspetto»): gradiente dai 3 colori della copertina.
+  const amb = useAmbiente();
 
   const showNotice = useCallback((n) => {
     clearTimeout(noticeTimer.current);
@@ -125,6 +128,8 @@ export default function App() {
         setPlaylists(playlistAnteprima());
         setSuoni(suoniAnteprima());
         setState(statoAnteprima);
+        // Solo anteprima: cambia la copertina del brano in corso dalla console o da Playwright.
+        window.__anteprimaCopertina = (thumbnail) => setState((s) => ({ ...s, current: s?.current && { ...s.current, thumbnail } }));
         setReceivedAt(performance.now());
         // Ogni pochi secondi un messaggio `members` finto, per provare l'unione allo stato.
         stop = simulaParlato((msg) => setState((s) => mergeMembers(s, msg)));
@@ -425,7 +430,24 @@ export default function App() {
   const phone = usePhone();
   // Finestrella in sovraimpressione di Discord (PIP/griglia) o finestra piccola: vista solo da guardare.
   const ridotta = useVistaRidotta();
-  const [tab, setTab] = useState('coda');
+  // Telefono: si apre sulla scheda Canale (la prima della barra in basso).
+  const [tab, setTab] = useState('canale');
+  // Telefono: altezza del player fluttuante (con l'eventuale avviso), per lo spazio in fondo alle liste
+  // (telefono.css, --mfloat-h): l'ultima riga deve poter salire sopra il player.
+  const dockRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = dockRef.current;
+    if (!phone || !el || typeof ResizeObserver === 'undefined') return undefined;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--mfloat-h', `${Math.ceil(el.offsetHeight)}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--mfloat-h');
+    };
+  });
   const [suoniTab, pickSuoniTab] = useSuoniTab();
   const leaveIn = useLeaveCountdown(state, receivedAt);
   const searching = searchOpen || search !== null;
@@ -440,6 +462,13 @@ export default function App() {
   const activity = searching
     ? { onPointerMove: pokeSearch, onPointerDown: pokeSearch, onKeyDown: pokeSearch, onWheel: pokeSearch, onFocus: pokeSearch, onInput: pokeSearch }
     : null;
+  // Telefono: scorre la pagina, non il pannello (styles.css, .layout-m): anche lo scorrimento della pagina
+  // conta come attività, così la ricerca non si chiude mentre si scorrono i risultati col dito.
+  useEffect(() => {
+    if (!searching || !phone) return undefined;
+    window.addEventListener('scroll', pokeSearch, { passive: true });
+    return () => window.removeEventListener('scroll', pokeSearch);
+  }, [searching, phone, pokeSearch]);
 
   if (status === 'fatal') {
     return (
@@ -472,6 +501,7 @@ export default function App() {
       phone={phone}
       pos={posTitolo}
       onPos={phone ? undefined : setPosTitolo}
+      amb={amb}
     />
   );
   const addBar = (
@@ -494,7 +524,7 @@ export default function App() {
       onEscape={() => leaveSearch()}
       busy={busy}
       disabled={status !== 'online'}
-      compact={!phone}
+      compact
     />
   );
 
@@ -551,17 +581,20 @@ export default function App() {
           Prova nel browser: il tempo scorre ma non esce audio. Dentro Discord suona nel canale vocale.
         </p>
       )}
-      {searching ? (
-        <SearchView
-          search={search}
-          onAdd={addResult}
-          onAddLink={addLink}
-          onClose={() => leaveSearch()}
-          closeInHead={!phone}
-        />
-      ) : phone && tab !== 'coda' ? (
+      {phone && tab !== 'coda' ? (
         <div className="view">
-          {tab === 'canale' && <Presence members={state?.members} />}
+          {tab === 'canale' && (
+            // Come «Nel canale» su PC: titolo con il nome del canale e conteggio, poi le persone.
+            <section className="mcanale" aria-label="Nel canale vocale">
+              <header className="mcanale__head">
+                <h2 className="mcanale__title">{state?.channelName ? `Nel canale · ${state.channelName}` : 'Nel canale'}</h2>
+                {state?.members && (
+                  <span className="ipill">{state.members.length} {state.members.length === 1 ? 'persona' : 'persone'}</span>
+                )}
+              </header>
+              <Presence members={state?.members} bare />
+            </section>
+          )}
           {tab === 'suoni' && (
             <div className="suoni-m">
               <div className="suoni-m__bar">{suoniSwitch(false, 'suoni-m')}</div>
@@ -570,7 +603,56 @@ export default function App() {
           )}
         </div>
       ) : (
-        <Queue state={state} loading={state === null} send={send} onFocusSearch={focusSearch} columns={!phone} head={phone} />
+        <>
+          {phone && (
+            // Telefono, scheda Coda (variante A): «Cerca» largo + Mescola, Ripeti, Svuota a sola icona; a ricerca
+            // aperta il campo prende la riga con «Chiudi», come nella barra del pannello Coda su PC.
+            <header className={`mqhead${searching ? ' mqhead--search' : ''}`} {...activity}>
+              {searching ? (
+                <div className="mqhead__row">
+                  <CampoAnimato open className="mqhead__search">{addBar}</CampoAnimato>
+                  <CloseSearch link={search?.kind === 'link'} onClose={() => leaveSearch()} />
+                </div>
+              ) : (
+                <QueueTools
+                  state={state}
+                  send={send}
+                  phone
+                  lead={(
+                    <CampoAnimato open={false} className="mqhead__search">
+                      <button
+                        ref={cercaRef}
+                        type="button"
+                        className="cpill cpill--cerca mqhead__cerca"
+                        onClick={() => {
+                          focusDopo.current = 'campo';
+                          openSearch();
+                        }}
+                        disabled={status !== 'online'}
+                        aria-label="Cerca un brano o incolla un link"
+                      >
+                        <I.Search width={18} height={18} />
+                        <span className="cpill__text">Cerca</span>
+                      </button>
+                    </CampoAnimato>
+                  )}
+                />
+              )}
+            </header>
+          )}
+          {searching ? (
+            <SearchView
+              search={search}
+              onAdd={addResult}
+              onAddLink={addLink}
+              onClose={() => leaveSearch()}
+              closeInHead
+              phone={phone}
+            />
+          ) : (
+            <Queue state={state} loading={state === null} send={send} onFocusSearch={focusSearch} columns={!phone} head={false} />
+          )}
+        </>
       )}
     </main>
   );
@@ -581,34 +663,37 @@ export default function App() {
 
   let body;
   if (phone) {
+    // Barra delle schede in basso: Canale · Coda · Suoni, icona sopra il testo (tavola «Mobile — proposta completa»).
     const TABS = [
-      ['coda', `Coda${queueLen ? ` · ${queueLen}` : ''}`],
-      ['canale', `Canale${state?.members ? ` · ${state.members.length}` : ''}`],
-      ['suoni', 'Suoni'],
+      ['canale', `Canale${state?.members ? ` · ${state.members.length}` : ''}`, I.People],
+      ['coda', `Coda${queueLen ? ` · ${queueLen}` : ''}`, I.Lines],
+      ['suoni', 'Suoni', I.Wave],
     ];
     body = (
       <div className="layout-m">
         <div className="layout-m__top">{brand}</div>
-        {addBar}
-        {np}
-        <div className="tabs" role="tablist" aria-label="Sezioni">
-          {TABS.map(([id, label]) => (
+        {panel}
+        <div className="mdock" ref={dockRef}>{np}</div>
+        <nav className="mtabs" role="tablist" aria-label="Sezioni">
+          {TABS.map(([id, label, Icon]) => (
             <button
               key={id}
               type="button"
               role="tab"
-              className="pill pill--tab"
+              className="mtab"
               aria-selected={tab === id}
               onClick={() => {
+                if (tab === id) return;
                 setTab(id);
                 if (searching) leaveSearch();
+                window.scrollTo({ top: 0 });
               }}
             >
-              {label}
+              <Icon width={22} height={22} />
+              <span className="mtab__txt">{label}</span>
             </button>
           ))}
-        </div>
-        {panel}
+        </nav>
       </div>
     );
   } else {
@@ -733,7 +818,10 @@ export default function App() {
   }
 
   return (
-    <div className="app" style={{ '--tint': tint }}>
+    <div
+      className={`app${amb.on ? ` amb${amb.pannelli === 'traslucidi' ? ' amb--glass' : ''}` : ''}`}
+      style={{ '--tint': tint, '--amb1': palette[0], '--amb2': palette[1], '--amb3': palette[2], '--amb-k': `${amb.k}%` }}
+    >
       <div className={`app__body ${stale ? 'is-stale' : ''}`} aria-busy={stale}>{body}</div>
 
       {stuck && status === 'reopen' && (

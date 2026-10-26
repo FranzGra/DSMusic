@@ -235,6 +235,20 @@ export function presenceText(state, leaveIn) {
   return null;
 }
 
+/**
+ * Lo stesso avviso, corto, per la pillola sulla copertina: `corto` da 214 px di copertina in su (ci sta
+ * intero), `minimo` sotto, `micro` sotto i 115 px (Compatto). Il testo intero di presenceText resta nel suggerimento.
+ */
+function presenceShort(state, leaveIn) {
+  if ((state?.leaveReason === 'empty' || state?.leaveReason === 'idle') && leaveIn != null) {
+    const tra = `esce tra ${formatTime(leaveIn)}`;
+    const t = formatTime(leaveIn);
+    return { corto: `${state.leaveReason === 'empty' ? 'Canale vuoto' : 'Coda finita'} · ${tra}`, minimo: `Esce tra ${t}`, micro: `Esce ${t}` };
+  }
+  if (state?.away && !state.current) return { corto: 'Bot uscito · premi play', minimo: 'Bot uscito', micro: 'Bot uscito' };
+  return null;
+}
+
 const PASSO_FRECCE = 5; // secondi per ogni freccia sulla barra
 const ATTESA_FRECCE_MS = 400; // le frecce premute di fila diventano un solo spostamento
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -333,7 +347,11 @@ function Progress({ current, disabled = false, pos, dur, send, onSeek, inline = 
       </div>
       <div className="progress__times">
         <span>{formatTime(current ? shown : 0)}</span>
-        <span>{current ? (dur ? formatTime(dur) : 'diretta') : '0:00'}</span>
+        {current && (current.live || !dur) ? (
+          <span className="np__live" aria-label="diretta">LIVE</span>
+        ) : (
+          <span>{current ? formatTime(dur) : '0:00'}</span>
+        )}
       </div>
     </div>
   );
@@ -375,19 +393,50 @@ const Warn = () => (
 );
 
 /**
- * Variante del lettore secondo la forma dello spazio che ha: più largo che alto (e largo almeno H_PLAYER)
- * → orizzontale, altrimenti verticale. Misura il contenitore con un ResizeObserver, prima del disegno.
+ * Mappa delle forme (tavola «Lettore · quattro layout»). `w` larghezza del pannello con i bordi, `hb` altezza
+ * del corpo (pannello meno la barra), `largo` = w ≥ H_PLAYER. Rapporto L/A = w / hb.
+ * - Orizzontale 'o': largo e (L/A ≥ 2,4 o corpo < 220)
+ * - Via di mezzo 'm': largo e L/A 1,3–2,4
+ * - Verticale 'v': L/A < 0,8 e copertina ≥ 160
+ * - Quadrato 'q': copertina (con il fader accanto) ≥ 120
+ * - Compatto 'c': tutto il resto
+ * Isteresi: per entrare in una forma la soglia va superata del 5%, per uscirne serve il 5% dall'altra parte
+ * (0,76 / 0,84 ecc.): trascinando un separatore il lettore non salta avanti e indietro.
+ */
+const ISTERESI = 0.05;
+export function sceltaForma(w, hb, largo, prev = null) {
+  const r = w / Math.max(1, hb);
+  // f = forma a cui porta la condizione vera: chi ci sta già ha il 5% di margine, chi entra deve superarla del 5%.
+  const k = (f) => (prev === f ? 1 : prev ? -1 : 0) * ISTERESI;
+  const lt = (x, t, f) => x < t * (1 + k(f));
+  const ge = (x, t, f) => x >= t * (1 - k(f));
+  const copV = Math.min(w - 40, 320, hb - 313); // copertina del Verticale (il resto del Verticale è alto 313)
+  const copQ = Math.min(240, hb - 219, w - 96); // copertina del Quadrato (titolo su una riga, fader accanto)
+  if (largo) {
+    if (lt(hb, 220, 'o') || ge(r, 2.4, 'o')) return 'o';
+    if (ge(r, 1.3, 'm')) return 'm';
+  }
+  if (lt(r, 0.8, 'v') && ge(copV, 160, 'v')) return 'v';
+  if (ge(copQ, 120, 'q')) return 'q';
+  return 'c';
+}
+
+/**
+ * Forma del lettore nel pannello (sceltaForma). Misura il contenitore con un ResizeObserver, prima del disegno.
  */
 function useShape(on) {
   const ref = useRef(null);
-  const [shape, setShape] = useState('v');
+  const [shape, setShape] = useState(null); // null: non ancora misurato (niente isteresi alla prima misura)
   useLayoutEffect(() => {
     const el = ref.current;
     if (!on || !el) return undefined;
     const measure = () => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      setShape(w >= H_PLAYER && w > h ? 'h' : 'v');
+      // Larghezza del pannello (bordi compresi), la stessa con cui Panels.jsx sceglie l'altezza minima:
+      // così a 440 px esatti il lettore è largo come previsto da MIN_H.lettoreH.
+      const w = el.closest('.pnl')?.offsetWidth ?? el.clientWidth;
+      const hb = el.clientHeight;
+      if (!w || !hb) return;
+      setShape((prev) => sceltaForma(w, hb, w >= H_PLAYER, prev));
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -398,14 +447,19 @@ function useShape(on) {
 }
 
 /**
- * Lettore. `layout`: 'auto' (dentro un pannello: orizzontale o verticale secondo la forma del pannello),
- * 'h' orizzontale, 'v' verticale, 'm' compatto (telefono).
+ * Lettore. `layout`: 'auto' (dentro un pannello: una delle cinque forme di sceltaForma), 'h' orizzontale,
+ * 'v' verticale, 'm' telefono.
  * `bare`: dentro un pannello (niente cornice). Senza brano in corso ma con la coda piena mostra il primo in coda come «Prossimo».
+ * Nel pannello l'avviso del canale è una pillola sopra la copertina (fuori dal flusso: le altezze non cambiano);
+ * sul telefono resta la riga gialla sotto copertina e titolo.
  */
 export default function NowPlaying({ state, receivedAt, send, layout = 'v', bare = false }) {
   const auto = layout === 'auto';
   const [fitRef, shape] = useShape(auto);
-  const variant = auto ? shape : layout;
+  // forma: 'v' 'q' 'c' 'o' 'mid' nel pannello ('mid' = via di mezzo, per non confonderla col telefono 'm').
+  // Orizzontale e via di mezzo usano la stessa struttura in riga ('h').
+  const forma = auto ? (shape === 'm' ? 'mid' : shape || 'v') : layout === 'h' ? 'o' : layout;
+  const variant = forma === 'o' || forma === 'mid' ? 'h' : forma;
   // Con 'auto' il lettore sta in un contenitore che riempie il pannello: lo misura useShape e le regole
   // CSS (container query) lo usano per scalare copertina, spazi e fader.
   const wrap = (node) => (auto ? <div className="np-fit" ref={fitRef}>{node}</div> : node);
@@ -432,10 +486,24 @@ export default function NowPlaying({ state, receivedAt, send, layout = 'v', bare
     ? [shown.author || 'Autore sconosciuto', shown.requestedBy && `richiesto da ${shown.requestedBy}`].filter(Boolean).join(' · ')
     : 'Cerca un brano o incolla un link qui sopra';
 
+  // Avviso nel pannello (opzione A della tavola): pillola in basso sopra la copertina, fuori dal flusso.
+  // Testo corto (o minimo sotto i 150 px di copertina, regole CSS); quello intero nel suggerimento e per i
+  // lettori di schermo.
+  const breve = auto && presence ? presenceShort(state, leaveIn) : null;
+  const pill = breve && (
+    <p className="np__pill" role="status" {...suggerimento(presence)}>
+      <Warn />
+      <span className="sr-only">{presence}</span>
+      <span className="np__pill-txt np__pill-txt--corto" aria-hidden="true">{breve.corto}</span>
+      <span className="np__pill-txt np__pill-txt--minimo" aria-hidden="true">{breve.minimo}</span>
+      <span className="np__pill-txt np__pill-txt--micro" aria-hidden="true">{breve.micro}</span>
+    </p>
+  );
   const art = (
     <div className="np__art">
       <Cover src={shown?.thumbnail} size="lg" />
       {state?.loading && <div className="np__loading"><span className="spinner" aria-hidden="true" /></div>}
+      {pill}
     </div>
   );
   const suonoTag = state?.suono && (
@@ -451,11 +519,13 @@ export default function NowPlaying({ state, receivedAt, send, layout = 'v', bare
       <p className="np__artist" title={sub}>{sub}</p>
     </div>
   );
-  const warn = presence && (
-    <p className="warn" role="status"><Warn />{presence}</p>
+  // Riga gialla nel flusso: solo sul telefono (nel pannello c'è la pillola sulla copertina).
+  const warn = !auto && presence && (
+    <p className="warn" role="status"><Warn /><span>{presence}</span></p>
   );
+  // In riga (tempi ai lati della barra) solo nell'Orizzontale largo almeno 640 px (regole CSS).
   const progress = (
-    <Progress current={current} disabled={Boolean(state?.loading)} pos={pos} dur={dur} send={send} onSeek={onSeek} inline={variant === 'h'} />
+    <Progress current={current} disabled={Boolean(state?.loading)} pos={pos} dur={dur} send={send} onSeek={onSeek} inline={forma === 'o'} />
   );
   const btn = (type, Icon, label, disabled, extra = {}) => (
     <button type="button" className={`icon-btn ${extra.on ? 'is-on' : ''}`} onClick={() => send(extra.msg || { type })} disabled={disabled} aria-label={label} {...suggerimento(extra.title || label)}>
@@ -481,15 +551,15 @@ export default function NowPlaying({ state, receivedAt, send, layout = 'v', bare
   // Shuffle e Ripeti stanno nella testata della coda (QueueTools in Queue.jsx).
   const controls = <div className="np__controls">{buttons}</div>;
 
-  // Orizzontale, a tutta altezza del pannello: copertina quadrata che scala con l'altezza · testo, avanzamento
-  // e comandi centrati in verticale · fader del volume a destra, alto quanto il pannello.
+  // Orizzontale ('o') e via di mezzo ('mid'), a tutta altezza del pannello: copertina quadrata che scala con
+  // l'altezza · testo, avanzamento e comandi centrati in verticale · fader del volume a destra, alto quanto il
+  // pannello. Nell'orizzontale largo barra e comandi stanno su una riga; nella via di mezzo uno sotto l'altro.
   if (variant === 'h') {
     return wrap(
-      <section className={`${card}np np--h`} aria-label="In riproduzione">
+      <section className={`${card}np np--h ${forma === 'mid' ? 'np--mid' : 'np--o'}`} aria-label="In riproduzione">
         {art}
         <div className="np__body">
           {meta}
-          {warn}
           <div className="np__deck">
             {progress}
             {controls}
@@ -499,16 +569,88 @@ export default function NowPlaying({ state, receivedAt, send, layout = 'v', bare
       </section>,
     );
   }
-  if (layout === 'm') {
-    return (
-      <section className={`${card}np np--m`} aria-label="In riproduzione">
-        <div className="np__row">{art}{meta}</div>
-        {warn}
+  // Quadrato: copertina con il fader accanto, alto quanto lei; sotto testo, barra e comandi.
+  if (variant === 'q') {
+    return wrap(
+      <section className={`${card}np np--q`} aria-label="In riproduzione">
+        <div className="np__qtop">
+          <div className="np__qpair">
+            {art}
+            <Fader state={state} send={send} />
+          </div>
+        </div>
+        {meta}
         {progress}
         {controls}
-      </section>
+      </section>,
     );
   }
+  // Compatto (pannello piccolo): riga copertina + testo come sul telefono, volume orizzontale in fondo.
+  if (variant === 'c') {
+    return wrap(
+      <section className={`${card}np np--c`} aria-label="In riproduzione">
+        <div className="np__row">{art}{meta}</div>
+        {progress}
+        {controls}
+        <div className="np__bottom">
+          <Volume state={state} send={send} className="np__volume" />
+        </div>
+      </section>,
+    );
+  }
+  // Telefono: player compatto che fluttua sopra la barra delle schede (telefono.css, tavola «Mobile — proposta
+  // completa»). Riga 1: copertina, titolo e autore, solo Play/Pausa e Avanti (44 px). Riga 2: barra con puntatore
+  // e tempi ai lati, trascinabile come nel Lettore. L'avviso giallo è una striscia che fluttua sopra il player.
+  if (layout === 'm') {
+    const miniSub = state?.suono
+      ? `Suono: ${state.suono.name}`
+      : current
+        ? sub
+        : next
+          ? `Prossimo · ${sub}`
+          : 'Niente in riproduzione';
+    return (
+      <div className="mfloat">
+        {presence && (
+          <p className="mfloat__warn" role="status"><Warn /><span>{presence}</span></p>
+        )}
+        <section className={`np np--mini${!shown ? ' np--idle' : ''}`} aria-label="In riproduzione">
+          <div className="mini__row">
+            <div className="mini__art">
+              <Cover src={shown?.thumbnail} size="lg" />
+              {state?.loading && <div className="np__loading"><span className="spinner" aria-hidden="true" /></div>}
+            </div>
+            <div className="mini__meta">
+              <p className="mini__title" title={title}>{title}</p>
+              <p className="mini__sub" title={miniSub}>{miniSub}</p>
+            </div>
+            <div className="mini__ctrl">
+              <button
+                type="button"
+                className="big-play mini__play"
+                onClick={() => send({ type: 'toggle' })}
+                disabled={!canPlay}
+                aria-label={playing ? 'Pausa' : 'Riproduci'}
+              >
+                {playing ? <I.Pause width={22} height={22} /> : <I.Play width={22} height={22} />}
+              </button>
+              <button
+                type="button"
+                className="icon-btn mini__next"
+                onClick={() => send({ type: 'skip' })}
+                disabled={!current}
+                aria-label="Salta al prossimo brano"
+              >
+                <I.Next width={22} height={22} />
+              </button>
+            </div>
+          </div>
+          <Progress current={current} disabled={Boolean(state?.loading)} pos={pos} dur={dur} send={send} onSeek={onSeek} inline />
+        </section>
+      </div>
+    );
+  }
+  // Verticale: copertina grande in alto, volume orizzontale in fondo.
   return wrap(
     <section className={`${card}np np--v`} aria-label="In riproduzione">
       {warn}

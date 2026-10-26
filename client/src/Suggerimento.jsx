@@ -9,8 +9,8 @@
  *
  * Regole: mouse/penna dopo 300 ms; tastiera subito (solo :focus-visible); mai al tocco; posizione
  * sopra, poi sotto, a destra, a sinistra, sempre dentro la finestra; sparisce con Esc e altri tasti,
- * scroll, clic, trascinamento, uscita dalla finestra. Se il pulsante mostra già lo stesso testo
- * (es. «Riproduci ora» nei Recenti sopra 230 px) il fumetto non serve e non compare.
+ * scroll, clic, trascinamento, uscita dalla finestra. Se il pulsante mostra già un testo (es. «Mescola»
+ * nella barra della Coda larga, «Ora» nei Recenti) il fumetto non serve e non compare.
  */
 import { useEffect } from 'react';
 import './suggerimento.css';
@@ -26,12 +26,16 @@ export function suggerimento(testo, tasto) {
   return p;
 }
 
-/** Il testo è già scritto, visibile, nel pulsante: niente fumetto. */
-function testoGiaVisibile(el, testo) {
-  const t = el.querySelector('[class*="__text"]');
-  if (!t) return false;
-  const r = t.getBoundingClientRect();
-  return r.width > 2 && r.height > 2 && t.textContent.trim() === testo;
+/**
+ * Il pulsante mostra già un testo visibile (.cpill__text, .rpill__text…): niente fumetto, qualunque sia il
+ * testo (tavola «Pulsanti con testo»: «Mescola» scritto basta, anche se il suggerimento dice «Mischia la coda»).
+ * Il fumetto resta per i pulsanti con la sola icona.
+ */
+function testoGiaVisibile(el) {
+  return [...el.querySelectorAll('[class*="__text"]')].some((t) => {
+    const r = t.getBoundingClientRect();
+    return r.width > 2 && r.height > 2;
+  });
 }
 
 function posiziona(bolla, freccia, el) {
@@ -107,7 +111,7 @@ export default function Suggerimenti() {
       clearTimeout(timer);
       if (!el || !el.isConnected) return;
       const t = el.getAttribute('data-tip');
-      if (!t || testoGiaVisibile(el, t)) return;
+      if (!t || testoGiaVisibile(el)) return;
       riempi();
       bolla.classList.add('is-on');
       posiziona(bolla, freccia, el);

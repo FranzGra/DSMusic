@@ -1,16 +1,79 @@
 /* Righe della coda su DUE LINEE (Queue.jsx: Row e NowRow, classe .qrow2).
    Linea 1: titolo (15 px, tutta la larghezza). Linea 2: «Autore · richiesto da Nome» (13 px, grigio).
    Copertina 44 px sulle due linee, durata a destra. Maniglia, azioni al passaggio del mouse e trascinamento
-   della riga intera sono quelli di styles.css (qrow__grip, qrow__acts, qrow__btn): qui cambia solo la griglia.
-   I selettori hanno una classe in più di quelli di styles.css (anche delle @container pnl) per vincere sempre. */
+   della riga intera sono quelli di styles.css (qrow__grip, qrow__acts, qrow__btn): qui cambiano griglia e maniglia.
+   I selettori hanno una classe in più di quelli di styles.css (anche delle @container pnl) per vincere sempre.
 
-.tracks--coda { --row: 56px; }
+   Tavola «CodaRighe» dell'artifact redesign (26-10-2026), misure dal bordo esterno del pannello:
+   - Coda larga (da 341 px): lista 6 px, riga senza padding a sinistra. Maniglia ferma (area 11-31 px,
+     icona 24 px a 9-33, puntini disegnati a 16-26) | numero allineato a sinistra, 3 px dopo i puntini (29 px),
+     in una colonna larga quanto le cifre del brano più lontano (--num-w da Queue.jsx: cifre × 7 px + 1,
+     cioè 8 / 15 / 22 px) + 8 px | copertina 44 px + 8 px | testo | durata 44 px.
+     Con 97 brani: copertina a 52 px, testo a 104 px (9 brani: 45 / 97; 121 brani: 59 / 111).
+     Correzione di Franz in Discord (26-10-2026): niente vuoto tra maniglia e numero.
+   - Coda stretta (fino a 340 px): niente numero e niente colonna della maniglia; riga con 14 px a sinistra,
+     copertina a 21 px come il titolo «Coda». La maniglia diventa un pulsante 44 × 44 sopra la copertina. */
 
+.tracks.tracks--coda { --row: 56px; --num-w: 15px; --grip-col: 22px; padding-left: 6px; }
+
+/* Spazi diversi tra le colonne: niente column-gap, gli spazi sono dentro le colonne (padding del numero e
+   del testo). La colonna della maniglia (--grip-col, 22 px) è più stretta della sua area (4 + 20 px): la maniglia
+   sporge di 2 px sotto il numero (che non riceve il puntatore), così il numero sta subito dopo i puntini. */
 .tracks--coda .qrow.qrow2,
 .tracks--coda .qblock .qrow.qrow2 {
-  grid-template-columns: 16px 26px 44px minmax(0, 1fr) 44px;
-  column-gap: 8px;
+  grid-template-columns: var(--grip-col) calc(var(--num-w) + 8px) 52px minmax(0, 1fr) 44px;
+  column-gap: 0;
   height: var(--row);
+  padding-left: 0;
+  /* Larghezza vera dei pulsanti azione: Sposta in cima + Rimuovi, --btn-sm l'uno (icon-btn--sm), 4 px fra
+     loro (gap di .qrow__acts). La riga in corso ha solo «Salta». La durata scivola a sinistra di questa misura
+     + 4 px, così finisce 4 px prima del primo pulsante (le azioni hanno lo stesso margine destro della riga). */
+  --acts-w: calc(2 * var(--btn-sm) + 4px);
+}
+.tracks--coda .qrow.qrow2.qnow,
+.tracks--coda .qrow.qrow2:has(> .qrow__acts > .qrow__top[hidden]) { --acts-w: var(--btn-sm); }
+/* (Il primo brano della coda ha «Sposta in cima» nascosto: la durata si ferma vicino a «Rimuovi».) */
+.tracks--coda .qrow2 > .qrow__num { text-align: left; margin-left: 0; padding-right: 8px; }
+.tracks--coda .qrow2 > .qrow2__text { padding-right: 8px; }
+
+/* Maniglia della Coda larga: area 20 × 40 a 4 px dall'inizio della riga, puntini 24 px più chiari. */
+.tracks--coda .qrow2 > .qrow__grip {
+  display: flex; align-items: center; justify-content: center; align-self: center;
+  width: 20px; height: 40px;
+  left: 4px;
+  color: var(--text-3);
+}
+.tracks--coda .qrow2 > .qrow__grip svg { width: 24px; height: 24px; margin: 0 -2px; flex: none; }
+@media (hover: hover) { .tracks--coda .qrow2 > .qrow__grip:hover { color: var(--text); } }
+.tracks--coda .qrow2 > .qnow__grip { width: 20px; }
+
+/* Col mouse sopra (o col fuoco sulle azioni) la durata scivola a sinistra dei pulsanti, non resta coperta.
+   Dietro la durata un fondo del colore della riga, pieno fino ai pulsanti (right: -16px arriva sotto il loro
+   bordo sinistro) e sfumato solo a sinistra: tra durata e pulsanti non si vede nessun pezzo del titolo. */
+.tracks--coda .qrow2 > .qrow__time { transition: transform 0.18s ease-out; }
+.tracks--coda .qrow2 > .qrow__time::before {
+  content: ""; position: absolute; z-index: -1; top: -8px; bottom: -8px; left: -16px; right: -16px;
+  background: linear-gradient(to right, transparent, var(--row-bg) 16px);
+  opacity: 0; transition: opacity 0.18s ease-out;
+}
+@media (hover: hover) {
+  .tracks--coda .qrow2:hover > .qrow__time,
+  .tracks--coda .qrow2:has(> .qrow__acts:focus-within) > .qrow__time {
+    transform: translateX(calc(-1 * (var(--acts-w) + 4px)));
+  }
+  .tracks--coda .qrow2:hover > .qrow__time::before,
+  .tracks--coda .qrow2:has(> .qrow__acts:focus-within) > .qrow__time::before { opacity: 1; }
+  /* Durata e pulsanti sono un solo blocco a fondo pieno: le azioni perdono la loro sfumatura (che passava
+     sopra le ultime cifre della durata) e partono 4 px prima del primo pulsante, a fondo pieno. L'unica
+     sfumatura resta quella a sinistra della durata, sopra il titolo. Al tocco resta tutto com'è. */
+  .tracks--coda .qrow2:hover > .qrow__acts,
+  .tracks--coda .qrow2 > .qrow__acts:focus-within { background: var(--row-bg); padding-left: 4px; }
+  /* Primo brano: «Sposta in cima» nascosto non tiene il posto (il fondo pieno coprirebbe la durata);
+     «Rimuovi» resta comunque all'ultimo posto a destra, come nelle altre righe. */
+  .tracks--coda .qrow2 > .qrow__acts > .qrow__top[hidden] { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tracks--coda .qrow2 > .qrow__time, .tracks--coda .qrow2 > .qrow__time::before { transition: none; }
 }
 
 /* Copertina più grande, anche per il brano in corso (con velo ed equalizzatore). */
@@ -34,25 +97,43 @@
 
 .tracks--coda .qrow2 .qrow__time { font-size: var(--fs-small); text-align: right; }
 
-/* Colonna stretta (< 380 px): numero e durata restano, la riga si stringe. */
+/* Colonna stretta (< 380 px): numero e durata restano, la riga si stringe (copertina → testo 6 px, durata 40). */
 @container pnl (max-width: 380px) {
   .tracks--coda .qrow.qrow2,
-  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 16px 24px 44px minmax(0, 1fr) 40px; column-gap: 6px; }
+  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: var(--grip-col) calc(var(--num-w) + 8px) 50px minmax(0, 1fr) 40px; }
+  .tracks--coda .qrow2 > .qrow2__text { padding-right: 6px; }
 }
-/* Stretta (< 340 px): via anche il numero, al titolo servono i 30 px. */
+/* Stretta (< 340 px): via il numero e la colonna della maniglia; copertina sulla linea del titolo «Coda».
+   La maniglia passa sopra la copertina: pulsante 44 × 44 con il velo nero al 55% (come .qnow__veil) e i sei
+   puntini bianchi da 22 px, visibile col mouse sulla riga o col fuoco. Un clic fermo riproduce (Queue.jsx,
+   legge --grip-play). La riga in corso non ha maniglia. */
 @container pnl (max-width: 340px) {
   .tracks--coda .qrow.qrow2,
-  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 16px 44px minmax(0, 1fr) 40px; }
-  .tracks--coda .qrow2 > .qrow__num { display: none; }
+  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 44px minmax(0, 1fr) 40px; column-gap: 6px; padding-left: 14px; }
+  .tracks--coda .qrow2 > .qrow__num,
+  .tracks--coda .qrow2 > .qnow__grip { display: none; }
+  .tracks--coda .qrow2 > .qrow2__text { padding-right: 0; }
+  .tracks--coda .qrow2 > .qrow__grip {
+    --grip-play: 1;
+    position: absolute; z-index: 2; left: 14px; top: 50%;
+    width: 44px; height: 44px; margin: -22px 0 0;
+    border-radius: 8px; background: rgb(0 0 0 / 0.55); color: #fff;
+  }
+  .tracks--coda .qrow2 > .qrow__grip:hover { color: #fff; }
+  .tracks--coda .qrow2 > .qrow__grip svg { width: 22px; height: 22px; margin: 0; }
+  /* Al tocco i puntini sulla copertina restano visibili: col dito si trascina SOLO dalla maniglia
+     (Queue.jsx, RowTouchSensor), così scorrere la lista non sposta mai le righe. Un tocco fermo riproduce. */
 }
 /* Molto stretta (< 260 px): via numero e durata, il titolo prende tutto lo spazio. */
 @container pnl (max-width: 260px) {
   .tracks--coda .qrow.qrow2,
-  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 16px 44px minmax(0, 1fr); column-gap: 6px; }
+  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 44px minmax(0, 1fr); column-gap: 6px; }
   .tracks--coda .qrow2 > .qrow__num,
   .tracks--coda .qrow2 > .qrow__time { display: none; }
 }
-/* Telefono e finestre piccole: stesse colonne (styles.css le restringe senza la classe in più). */
-@media (max-width: 900px) {
-  .tracks--coda .qrow.qrow2 { grid-template-columns: 16px 24px 44px minmax(0, 1fr) 44px; }
+
+/* Al tocco la maniglia (20 px) è stretta per un dito: l'area attiva si allarga di 4 px a sinistra e 8 px a destra
+   (sopra il numero, che non riceve il tocco). Solo qui parte il trascinamento col dito (Queue.jsx). */
+@media (hover: none) {
+  .tracks--coda .qrow2 > .qrow__grip::after { content: ""; position: absolute; inset: 0 -8px 0 -4px; }
 }

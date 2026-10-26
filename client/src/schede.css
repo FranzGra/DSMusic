@@ -85,12 +85,6 @@
 .pnl__drop--split { background: rgb(30 215 96 / 0.2); border-color: var(--accent); }
 /* Linea verde: dove si inserisce tra le linguette. */
 .pnl__line { position: absolute; z-index: 7; top: 9px; width: 3px; height: 28px; border-radius: 2px; background: var(--accent); pointer-events: none; }
-.ptab-ghost {
-  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
-  display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px;
-  background: #2a2a2a; border: 1px solid rgb(255 255 255 / 0.25); box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
-  font-size: var(--fs-small); font-weight: 600; color: var(--text); white-space: nowrap;
-}
 
 /* ---------- zone di rilascio (tutte visibili appena parte il trascinamento) ----------
    Tratteggiate: dove si può lasciare. Verde pieno: quella sotto il puntatore, con la sagoma (.pnl__sil)
@@ -148,10 +142,7 @@
   font-size: var(--fs-small); font-weight: 500; line-height: 18px; color: var(--text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* Le scritte stanno dalla parte lontana dalla sagoma trascinata (hitAt sceglie in alto o in basso) e, dove non
-   c'è posto, restano solo la spiegazione o solo la pillola. */
-.pnl__zone--at-top { justify-content: flex-start; padding-top: 10px; }
-.pnl__zone--at-bottom { justify-content: flex-end; padding-bottom: 10px; }
+/* Le scritte stanno al centro della zona e, dove non c'è posto, restano solo la spiegazione o solo la pillola. */
 .pnl__zone--fit-cap .pnl__zswap, .pnl__zone--fit-pill .pnl__zswap, .pnl__zone--fit-pill .pnl__zcap { display: none; }
 .pnl__zone.is-on, .panels__zcol.is-on { background: rgb(30 215 96 / 0.14); border: 2px solid var(--accent); color: var(--accent); }
 /* Colonna nuova: striscia sul bordo della colonna accanto a una colonna vuota. */

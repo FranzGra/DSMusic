@@ -20,11 +20,16 @@
   .recent .recent__row + .recent__row { border-top: 1px solid var(--border); }
   .recent .recent__acts { grid-column: 1 / -1; }
 }
-/* Colonna stretta: prima si toglie il testo dei pulsanti (restano cerchi 32 px con la sola icona, sulla stessa
-   riga, con aria-label e title); solo se non ci stanno nemmeno così vanno a capo. Soglia misurata: i due
-   pulsanti con testo occupano 221 px (126+6+89), quindi sotto 230 px di larghezza del pannello passano a sola icona. */
+/* Colonna stretta (tavola «Pulsanti con testo»): sotto 230 px di lista «Riproduci ora» si accorcia in «Ora» e
+   resta con icona e testo; «In coda», l'azione principale, tiene il testo. Tutte e due solo icona (cerchi 32 px,
+   con aria-label e suggerimento) quando nemmeno «Ora» + «In coda» ci stanno su una riga (67 + 6 + 89 px misurati nell'anteprima, più un margine per gli arrotondamenti). */
 .recent .recent__acts { flex-wrap: wrap; }
+.rpill__text--corto { display: none; }
 @container recent (max-width: 229.98px) {
+  .rpill__text--lungo { display: none; }
+  .rpill__text--corto { display: inline; }
+}
+@container recent (max-width: 163.98px) {
   .rpill { width: 32px; padding: 0; justify-content: center; }
-  .rpill__text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rpill .rpill__text { display: none; }
 }

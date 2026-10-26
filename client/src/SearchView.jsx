@@ -12,6 +12,8 @@ export const AZIONI = {
   prossimo: { label: 'Metti come prossimo', pill: 'Come prossimo', tip: 'Suona subito dopo il brano in corso', done: 'Sarà il prossimo', Icon: I.ToTop },
   ora: { label: 'Riproduci ora', pill: 'Riproduci ora', tip: 'Riproduci subito', done: 'Parte adesso', Icon: I.Play },
 };
+// Telefono: le tre pillole stanno su una riga sotto il titolo, con testi corti (tavola «Mobile — proposta completa»).
+const CORTI = { fine: ['In coda', 'Aggiunto'], prossimo: ['Prossimo', 'Aggiunto'], ora: ['Ora', 'Parte'] };
 
 /**
  * Riga di un brano con le tre azioni. Il clic sulla riga (e Invio sulla riga selezionata) fa
@@ -19,7 +21,7 @@ export const AZIONI = {
  * «In coda» per una playlist o un link ancora sconosciuto.
  * onAct(dove) restituisce una promessa { ok }: durante l'attesa i pulsanti sono fermi.
  */
-function Result({ r, index, onAct, linkRow = false, predefinita = 'fine' }) {
+function Result({ r, index, onAct, linkRow = false, predefinita = 'fine', phone = false }) {
   const [pending, setPending] = useState(null); // 'fine' | 'prossimo' | 'ora'
   const [done, setDone] = useState(null);
   const timer = useRef(null);
@@ -91,7 +93,7 @@ function Result({ r, index, onAct, linkRow = false, predefinita = 'fine' }) {
               title={tip}
             >
               {pending === dove ? <span className="spinner spinner--btn" aria-hidden="true" /> : done === dove ? <I.Check width={16} height={16} /> : <Icon width={16} height={16} />}
-              <span className="apill__text">{done === dove ? AZIONI[dove].done : pill}</span>
+              <span className="apill__text">{phone ? CORTI[dove][done === dove ? 1 : 0] : done === dove ? AZIONI[dove].done : pill}</span>
             </button>
           );
         })}
@@ -125,7 +127,20 @@ export function CloseSearch({ link = false, onClose }) {
  * Vista di ricerca. `search` null = ricerca aperta ma ancora vuota (invito a scrivere).
  * `closeInHead`: il pulsante Chiudi sta già nella barra del pannello, qui non si ripete.
  */
-export default function SearchView({ search, onAdd, onAddLink, onClose, closeInHead = false }) {
+export default function SearchView({ search, onAdd, onAddLink, onClose, closeInHead = false, phone = false }) {
+  // Telefono: niente titolo grande, solo una riga piccola sopra i risultati (il campo e «Chiudi» sono nella testata).
+  const head = (eyebrow, title, link = false) =>
+    phone ? (
+      <p className="search-lab">{eyebrow} · {title}</p>
+    ) : (
+      <header className="search-head">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1 className="search-head__title">{title}</h1>
+        </div>
+        {!closeInHead && <CloseSearch link={link} onClose={onClose} />}
+      </header>
+    );
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -135,13 +150,7 @@ export default function SearchView({ search, onAdd, onAddLink, onClose, closeInH
   if (!search) {
     return (
       <div className="view view--search">
-        <header className="search-head">
-          <div>
-            <p className="eyebrow">Cerca su YouTube</p>
-            <h1 className="search-head__title">Cosa vuoi ascoltare?</h1>
-          </div>
-          {!closeInHead && <CloseSearch onClose={onClose} />}
-        </header>
+        {head('Cerca su YouTube', 'Cosa vuoi ascoltare?')}
         <div className="empty search-idle">
           <span className="empty__icon" aria-hidden="true"><I.Search width={30} height={30} /></span>
           <p className="empty__text">
@@ -168,20 +177,14 @@ export default function SearchView({ search, onAdd, onAddLink, onClose, closeInH
     const predefinita = info && !info.playlist ? 'prossimo' : 'fine';
     return (
       <div className="view view--search">
-        <header className="search-head">
-          <div>
-            <p className="eyebrow">Link incollato</p>
-            <h1 className="search-head__title">Dove lo metto?</h1>
-          </div>
-          {!closeInHead && <CloseSearch link onClose={onClose} />}
-        </header>
+        {head('Link incollato', 'Dove lo metto?', true)}
         <div className="tracks">
-          <p className="section-label">
+          {!phone && <p className="section-label">
             {info?.playlist ? 'Playlist' : 'Brano'}
             <span className="section-label__hint">{predefinita === 'prossimo' ? 'Invio o clic sulla riga: come prossimo' : 'Invio o clic sulla riga: in fondo alla coda'}</span>
-          </p>
+          </p>}
           <ol className="queue__list">
-            <Result key={query} r={r} index={0} linkRow predefinita={predefinita} onAct={(dove) => onAddLink(query, dove)} />
+            <Result key={query} r={r} index={0} linkRow predefinita={predefinita} phone={phone} onAct={(dove) => onAddLink(query, dove)} />
           </ol>
         </div>
       </div>
@@ -190,15 +193,7 @@ export default function SearchView({ search, onAdd, onAddLink, onClose, closeInH
 
   return (
     <div className="view view--search">
-      <header className="search-head">
-        <div>
-          <p className="eyebrow">Cerca su YouTube</p>
-          <h1 className="search-head__title">
-            {status === 'loading' ? 'Cerco' : 'Risultati per'} «{query}»
-          </h1>
-        </div>
-        {!closeInHead && <CloseSearch onClose={onClose} />}
-      </header>
+      {head('Cerca su YouTube', phone ? `${status === 'loading' ? 'cerco' : 'risultati per'} «${query}»` : `${status === 'loading' ? 'Cerco' : 'Risultati per'} «${query}»`)}
 
       <div className="tracks" aria-busy={status === 'loading'}>
         {status === 'loading' && (
@@ -233,13 +228,15 @@ export default function SearchView({ search, onAdd, onAddLink, onClose, closeInH
 
         {status === 'done' && results.length > 0 && (
           <>
-            <p className="section-label">
-              <span className="ipill">{results.length} risultati</span>
-              <span className="section-label__hint">Clic sulla riga: come prossimo</span>
-            </p>
+            {!phone && (
+              <p className="section-label">
+                <span className="ipill">{results.length} risultati</span>
+                <span className="section-label__hint">Clic sulla riga: come prossimo</span>
+              </p>
+            )}
             <ol className="queue__list">
               {results.map((r, i) => (
-                <Result key={r.id} r={r} index={i} predefinita="prossimo" onAct={(dove) => onAdd(r.id, dove)} />
+                <Result key={r.id} r={r} index={i} predefinita={phone ? 'fine' : 'prossimo'} phone={phone} onAct={(dove) => onAdd(r.id, dove)} />
               ))}
             </ol>
           </>

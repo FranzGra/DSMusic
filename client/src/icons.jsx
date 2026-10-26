@@ -107,3 +107,11 @@ export const Lock = (p) => (
 export const Alert = (p) => (
   <svg {...base} {...p} {...stroke}><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
 );
+
+// Barra delle schede del telefono (tavola «Mobile — proposta completa»): Canale, Coda, Suoni.
+export const People = (p) => (
+  <svg {...base} {...p} {...stroke}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8" /><path d="M18.5 20a6.5 6.5 0 0 0-2.6-5.2" /></svg>
+);
+export const Lines = (p) => (
+  <svg {...base} {...p} {...stroke}><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /></svg>
+);

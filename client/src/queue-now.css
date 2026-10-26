@@ -51,10 +51,13 @@
 
 /* Col mouse sopra (o col fuoco) al posto delle barrette compare pausa / riproduci. */
 .qnow__hover { display: none; }
-.qrow.qnow:hover .qnow__eq,
 .qrow.qnow:has(.qrow__btn:focus-visible) .qnow__eq { display: none; }
-.qrow.qnow:hover .qnow__hover,
 .qrow.qnow:has(.qrow__btn:focus-visible) .qnow__hover { display: grid; }
+/* Solo col mouse: al tocco l'icona resterebbe appiccicata alla riga dopo il tap. */
+@media (hover: hover) {
+  .qrow.qnow:hover .qnow__eq { display: none; }
+  .qrow.qnow:hover .qnow__hover { display: grid; }
+}
 
 /* Testo solo per i lettori di schermo («In riproduzione» / «In pausa»). */
 .qnow__sr {

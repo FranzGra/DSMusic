@@ -43,7 +43,7 @@ const MIN_PLAYER = 300;
 // Larghezza minima della colonna con la scheda Coda (anche in ricerca): titolo, pillola «Cerca» al centro e
 // tre pulsanti ci stanno senza toccarsi (queue-head.css).
 const MIN_CODA = 300;
-// Il Lettore è orizzontale quando il suo pannello è più largo che alto e largo almeno così (NowPlaying.jsx).
+// Da questa larghezza il Lettore può essere Orizzontale o Via di mezzo (sceltaForma in NowPlaying.jsx).
 // 440: a 1280 px la colonna centrale di Player orizzontale è larga circa 520 px.
 export const H_PLAYER = 440;
 const BAR = 46; // riga titolo (scheda sola) e riga strumenti
@@ -79,11 +79,11 @@ const P = (...tabs) => ({ tabs, act: tabs[0] });
 export const PRESETS = {
   orizzontale: {
     label: 'Player orizzontale',
-    sub: 'Canale e soundbar a sinistra, lettore largo e coda al centro, libreria a destra',
-    // Misurata a 1597×720: colonne 275 / 959 / 307, altezze [206, 470] [208, 468] [624].
-    cols: [[P('canale'), P('soundbar')], [P('lettore'), P('coda', 'recenti')], [P('libreria')]],
-    w: [275, 307],
-    ratio: [0.3047337278106509, 0.3076923076923077, null],
+    sub: 'Coda e recenti a sinistra, lettore e soundbar al centro, canale e libreria a destra',
+    // Misurata a 1597×720: colonne 412 / 837 / 292, altezze [688] [250, 426] [186, 426].
+    cols: [[P('coda', 'recenti')], [P('lettore'), P('soundbar')], [P('canale'), P('libreria')]],
+    w: [412, 292],
+    ratio: [null, 0.36983103344659407, 0.30392156862745096],
     chiuse: [],
   },
   verticale: {
@@ -221,6 +221,73 @@ function toV2(raw) {
   return valid1(l) ? fromV1(l, oldSuoniAct()) : null;
 }
 
+/* ---------------------------------------------------------------------------------------------------- */
+/* Importa disposizione: testo incollato (JSON di «Esporta disposizione» o solo { cols, w, ratio, chiuse }) */
+/* ---------------------------------------------------------------------------------------------------- */
+
+const nome = (t) => (TAB_LABEL[t] ? `${t === 'canale' ? 'il pannello ' : 'la '}${TAB_LABEL[t]}` : `«${t}»`);
+
+/** Perché una disposizione non passa `valid` (solo per il messaggio: la decisione resta a `valid`). */
+function motivo(l) {
+  if (!l || typeof l !== 'object' || !Array.isArray(l.cols)) return 'manca l’elenco delle colonne (cols)';
+  if (l.cols.length !== 3) return `le colonne devono essere 3, qui sono ${l.cols.length}`;
+  if (!l.cols.every(Array.isArray)) return 'una colonna non è un elenco di pannelli';
+  const ps = l.cols.flat();
+  if (ps.some((p) => !p || !Array.isArray(p.tabs) || p.tabs.length === 0)) return 'un pannello non ha schede (tabs)';
+  if (!Array.isArray(l.chiuse)) return 'manca l’elenco delle schede chiuse (chiuse)';
+  const tutte = [...ps.flatMap((p) => p.tabs), ...l.chiuse];
+  const ignota = tutte.find((t) => !TAB_IDS.includes(t));
+  if (ignota !== undefined) return `pannello sconosciuto ${typeof ignota === 'string' ? `«${ignota}»` : String(JSON.stringify(ignota))}`;
+  const doppia = tutte.find((t, i) => tutte.indexOf(t) !== i);
+  if (doppia) return `${nome(doppia)} compare due volte`;
+  const manca = TAB_IDS.find((t) => !tutte.includes(t));
+  if (manca) return `manca ${nome(manca)}`;
+  const senzaAct = ps.find((p) => !p.tabs.includes(p.act));
+  if (senzaAct) return `la scheda attiva (act) di un pannello non è tra le sue schede (${senzaAct.tabs.map((t) => TAB_LABEL[t]).join(', ')})`;
+  if (l.cols.some((c) => c.length > MAX_IN_COL)) return `una colonna ha più di ${MAX_IN_COL} pannelli`;
+  if (!ps.length) return 'non c’è nessun pannello aperto';
+  if (!Array.isArray(l.w) || l.w.length !== 2 || !l.w.every(num)) return 'le larghezze delle colonne laterali (w) devono essere due numeri';
+  if (!Array.isArray(l.ratio) || l.ratio.length !== 3 || !l.ratio.every((r, i) => ratioOk(r, l.cols[i].length))) return 'le altezze dei pannelli (ratio) non sono valide';
+  return 'formato non riconosciuto';
+}
+
+/** Oltre a `valid`: numeri sensati (larghezze positive, la parte del primo pannello tra 0 e 1). */
+function sensata(l) {
+  if (!l.w.every((v) => v > 0)) return 'le larghezze delle colonne laterali (w) devono essere maggiori di zero';
+  if (!l.ratio.every((r) => !num(r) || (r > 0 && r < 1))) return 'la parte del primo pannello (ratio) deve stare tra 0 e 1';
+  return null;
+}
+
+/**
+ * Testo incollato → disposizione pronta da usare come Personalizzata, con le stesse regole del caricamento
+ * (`valid`, poi `fit` per le larghezze). Accetta il JSON completo dell'esportazione (`disposizione`, se manca
+ * `salvato.personalizzata`) o solo { cols, w, ratio, chiuse }; ignora il testo attorno (es. ```json in chat).
+ * Restituisce { layout } oppure { errore } (frase in italiano).
+ */
+export function leggiDisposizione(testo) {
+  const t = String(testo ?? '');
+  const a = t.indexOf('{');
+  const b = t.lastIndexOf('}');
+  if (a < 0 || b < a) return { errore: 'Il testo non contiene una disposizione: incolla il testo di «Esporta disposizione».' };
+  let obj;
+  try {
+    obj = JSON.parse(t.slice(a, b + 1));
+  } catch {
+    return { errore: 'Il testo non è JSON valido: forse è incompleto o rovinato. Incollalo di nuovo per intero.' };
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { errore: 'Il testo non è una disposizione valida.' };
+  if (obj.formato !== undefined && obj.formato !== 2) return { errore: `Il testo non è una disposizione valida: formato ${JSON.stringify(obj.formato)}, serve il formato 2.` };
+  const l = obj.disposizione ?? obj.salvato?.personalizzata ?? (obj.cols ? obj : null);
+  if (!l) return { errore: 'Il testo non è una disposizione valida: non trovo «disposizione» né «cols».' };
+  if (!valid(l)) return { errore: `Il testo non è una disposizione valida: ${motivo(l)}.` };
+  const no = sensata(l);
+  if (no) return { errore: `Il testo non è una disposizione valida: ${no}.` };
+  return { layout: fit(copy(l)) };
+}
+
+/** Stessa disposizione? (per non chiedere conferma se si reimporta quella che c'è già) */
+export const stessaDisposizione = (a, b) => Boolean(a && b) && JSON.stringify(copy(a)) === JSON.stringify(copy(b));
+
 /** Minimo della colonna laterale i (0 = sinistra, 1 = destra): più alto se ci sta il Lettore o la Coda. */
 const sideMin = (cols, i) => {
   const col = cols[i === 0 ? 0 : 2];
@@ -323,11 +390,16 @@ export function useLayout() {
     apply({ ...stateRef.current, choice });
   }, [apply]);
   const reset = useCallback(() => apply({ ...stateRef.current, choice: DEFAULT, custom: null }), [apply]);
+  // Disposizione importata (già controllata da leggiDisposizione): diventa la Personalizzata, salvata e in uso.
+  const importa = useCallback((layout) => {
+    setSaved((n) => n + 1);
+    apply({ ...stateRef.current, choice: CUSTOM, custom: fit(copy(layout)) });
+  }, [apply]);
   const layout = useMemo(
     () => (state.choice === CUSTOM ? state.custom : withAttive(copy(PRESETS[state.choice]), state.attive)),
     [state],
   );
-  return { layout, choice: state.choice, custom: state.custom, saved, change, setAct, pick, reset };
+  return { layout, choice: state.choice, custom: state.custom, saved, change, setAct, pick, reset, importa };
 }
 
 /* ---------------------------------------------------------------------------------------------------- */
@@ -823,8 +895,6 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
   layoutRef.current = layout;
   const hoverRef = useRef(null);
   hoverRef.current = hover;
-  const ghostRef = useRef(null);
-  const ghostPos = useRef({ x: 0, y: 0 });
   const dragged = useRef(false); // il clic che segue un trascinamento non cambia scheda
 
   // Un solo gestore per puntatore e tasti finché dura il gesto; si stacca da solo alla fine.
@@ -898,14 +968,10 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
     if (!T || !S) return null;
     if (what === 'zone') {
       if (side === 'swap') {
-        // Le scritte dello scambio vanno dove c'è più posto, lontano dalla sagoma (da y + 12 a y + 46); se lì
-        // non stanno tutte, restano la spiegazione e la pillola (112 px tutto, 60 px senza i due nomi).
-        const r = z.getBoundingClientRect();
-        const above = y - r.top - 6;
-        const below = r.bottom - (y + 46) - 6;
-        const room = Math.max(above, below);
-        const show = room >= 112 ? 'all' : room >= 60 ? 'cap' : 'pill';
-        return { kind: 'swap', c, k, at: above >= below ? 'top' : 'bottom', fit: show };
+        // Le scritte dello scambio stanno sempre al centro della zona; se non ci stanno tutte (zona bassa) restano
+        // la spiegazione e la pillola (100 px tutto, 56 px senza i due nomi).
+        const h = z.getBoundingClientRect().height;
+        return { kind: 'swap', c, k, fit: h >= 100 ? 'all' : h >= 56 ? 'cap' : 'pill' };
       }
       // Altezza che avrà il pannello nuovo: la colonna si divide in parti uguali (vedi resetRatios).
       const stack = z.closest('.panels__stack');
@@ -951,8 +1017,6 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
     let timer = null;
     dragged.current = false;
     const follow = (x, y) => {
-      ghostPos.current = { x: x + 12, y: y + 12 };
-      if (ghostRef.current) ghostRef.current.style.transform = `translate(${ghostPos.current.x}px, ${ghostPos.current.y}px)`;
       const h = hitAt(x, y, d);
       if (JSON.stringify(h) !== JSON.stringify(hoverRef.current)) {
         hoverRef.current = h;
@@ -966,7 +1030,6 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
       setMenu(null);
       setDrag(d);
       // Le zone compaiono al prossimo disegno: si cerca subito dopo quella sotto il puntatore.
-      ghostPos.current = { x: last.x + 12, y: last.y + 12 };
       requestAnimationFrame(() => follow(last.x, last.y));
     };
     if (touch) {
@@ -1157,8 +1220,7 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
         </div>
       );
       // Centro = scambio. Le zone Scambia ferme mostrano solo la pillola; quella sotto il puntatore dice con chi,
-      // mostra i due che si scambiano e una riga che spiega, tutto dalla parte libera dalla sagoma trascinata
-      // (`on.at`, scelto da hitAt: in alto o in basso nella zona).
+      // mostra i due che si scambiano e una riga che spiega, tutto centrato nella zona.
       const swapOn = zOn('swap');
       const whole = drag.mode === 'panel';
       const swapExtra = swapOn && (
@@ -1181,7 +1243,7 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
           )}
           <div aria-hidden="true" className={`pnl__zones${cz.left ? ' pnl__zones--l' : ''}${cz.right ? ' pnl__zones--r' : ''}`} style={{ top: headH }}>
             {zo.top ? zone('top', 'Sopra') : <div className="pnl__zgap" />}
-            {zo.swap ? zone('swap', swapOn ? `Scambia con «${p.title}»` : 'Scambia', swapExtra, swapOn ? ` pnl__zone--at-${on.at} pnl__zone--fit-${on.fit}` : '') : <div className="pnl__zgap pnl__zgap--mid" />}
+            {zo.swap ? zone('swap', swapOn ? `Scambia con «${p.title}»` : 'Scambia', swapExtra, swapOn ? ` pnl__zone--fit-${on.fit}` : '') : <div className="pnl__zgap pnl__zgap--mid" />}
             {zo.bottom ? zone('bottom', 'Sotto') : <div className="pnl__zgap" />}
           </div>
         </>
@@ -1324,11 +1386,6 @@ export default function Panels({ layout, onChange, onAct, render, head, headPos 
           </div>
         );
       })}
-      {drag && (
-        <div className="ptab-ghost" ref={ghostRef} aria-hidden="true" style={{ transform: `translate(${ghostPos.current.x}px, ${ghostPos.current.y}px)` }}>
-          {drag.mode === 'panel' ? layout.cols[drag.c]?.[drag.k]?.tabs.map((t) => TAB_LABEL[t]).join(' · ') : TAB_LABEL[drag.tab]}
-        </div>
-      )}
       {menuPanel && (
         <PanelMenu
           anchor={menu.anchor}

@@ -53,6 +53,8 @@ export const statoAnteprima = {
   current: qp.has('vuoto') ? null : {
     ...brano('a1', 'Bohemian Rhapsody (Remastered 2011)', 'Queen', 355),
     ...(qp.has('copertina') ? { thumbnail: 'https://i.ytimg.com/vi/fJ9rUzIMcZQ/hqdefault.jpg' } : {}),
+    // ?diretta=1: il brano in corso è una diretta (badge LIVE al posto della durata).
+    ...(qp.has('diretta') ? { live: true, duration: 0 } : {}),
   },
   // ?pausa=1: brano in corso in pausa (barrette ferme nella prima riga della coda).
   paused: qp.has('uscita') || qp.has('pausa'),

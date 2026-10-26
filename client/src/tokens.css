@@ -4,6 +4,11 @@
  * colore solo con significato: verde = suona/attivo, giallo = avviso, rosso = distruttivo.
  */
 @property --tint { syntax: '<color>'; inherits: true; initial-value: #3a3a3a; }
+/* Modalità Ambiente (ambiente.css): 3 colori della copertina e intensità, registrati per poterli sfumare. */
+@property --amb1 { syntax: '<color>'; inherits: true; initial-value: #3a3a3a; }
+@property --amb2 { syntax: '<color>'; inherits: true; initial-value: #3a3a3a; }
+@property --amb3 { syntax: '<color>'; inherits: true; initial-value: #3a3a3a; }
+@property --amb-k { syntax: '<percentage>'; inherits: true; initial-value: 25%; }
 
 :root {
   /* fondi: quasi nero, grigi neutri + un velo appena percettibile della copertina */
@@ -47,7 +52,6 @@
   --btn-sm: 32px;
   --play: 52px;
   --side: clamp(240px, 19vw, 300px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   /* font */
   --font: 'Figtree', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
@@ -55,9 +59,19 @@
   --fs-h: 18px;
   --fs-body: 14px;
   --fs-small: 13px;
+  --fs-unit: 10px; /* lettere h, m, s della durata totale («11h23m22s», queue-head.css) */
   --ease: cubic-bezier(0.3, 0, 0, 1);
 
   color-scheme: dark;
 }
+/* Bordi sicuri (notch, Dynamic Island, barra home). Dentro Discord l'iframe non riceve env(): Discord passa
+   --discord-safe-area-inset-* (docs Activities, «Mobile» → safe areas). Fuori da Discord vale env().
+   Ripetuti su body: se Discord mette le variabili su body e non su html, si leggono lo stesso. */
+:root, body {
+  --safe-top: max(var(--discord-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
+  --safe-right: max(var(--discord-safe-area-inset-right, 0px), env(safe-area-inset-right, 0px));
+  --safe-left: max(var(--discord-safe-area-inset-left, 0px), env(safe-area-inset-left, 0px));
+  --safe-bottom: max(var(--discord-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+}
 /* Dentro Discord la fila dei partecipanti sporge solo di pochi px sul fondo: basta un margine piccolo. */
-:root.in-discord { --safe-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
+:root.in-discord, :root.in-discord body { --safe-bottom: max(20px, var(--discord-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)); }

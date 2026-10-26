@@ -29,7 +29,9 @@ export default function Recent({ history, send, className = '', bare = false }) 
                   {...suggerimento('Riproduci ora')}
                 >
                   <I.Play width={16} height={16} />
-                  <span className="rpill__text">Riproduci ora</span>
+                  {/* Lista stretta: «Riproduci ora» si accorcia in «Ora» (recent.css); il nome completo è nell'aria-label. */}
+                  <span className="rpill__text rpill__text--lungo">Riproduci ora</span>
+                  <span className="rpill__text rpill__text--corto">Ora</span>
                 </button>
                 <button
                   type="button"

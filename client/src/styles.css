@@ -20,9 +20,11 @@ button { font: inherit; color: inherit; }
 /* ---------- impaginazione: niente scroll di pagina, scorrono solo i pannelli ---------- */
 .app {
   height: 100dvh;
-  padding: var(--gap) 16px max(16px, var(--safe-bottom));
+  /* Bordi sicuri (tokens.css): niente sotto notch o Dynamic Island, niente sotto la barra home. */
+  padding: calc(var(--gap) + var(--safe-top)) calc(16px + var(--safe-right)) max(16px, var(--safe-bottom)) calc(16px + var(--safe-left));
   background: var(--bg);
-  transition: --tint 0.8s ease;
+  /* --amb*: Modalità Ambiente, dissolvenza di 2 s al cambio brano (ambiente.css). */
+  transition: --tint 0.8s ease, --amb1 2s ease, --amb2 2s ease, --amb3 2s ease, --amb-k 0.4s ease;
 }
 .app--center { display: grid; place-items: center; }
 .app__body { height: 100%; }
@@ -177,6 +179,22 @@ button { font: inherit; color: inherit; }
 .layout-m__top { display: flex; align-items: center; gap: 10px; min-height: 40px; }
 .layout-m__top .titolo { flex: 1; min-width: 0; }
 .tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; flex: none; }
+/* Telefono: scorre la PAGINA intera, non un riquadro interno. Prima html/body erano bloccati (overflow: hidden)
+   e scorreva solo il pannello Coda, alto mezzo schermo: su iPhone dentro Discord il dito non scorreva e la coda
+   restava tagliata. Ora intestazione, ricerca, Lettore e linguette salgono via e la coda usa tutto lo schermo.
+   La testata «Coda» (e quella della ricerca) resta attaccata in cima, sotto la Dynamic Island. */
+html:has(.layout-m), html:has(.layout-m) body, html:has(.layout-m) #root { height: auto; min-height: 100%; overflow: visible; }
+.app:has(> .app__body > .layout-m) { height: auto; min-height: 100dvh; display: flex; flex-direction: column; }
+.app__body:has(> .layout-m) { flex: 1; height: auto; display: flex; flex-direction: column; }
+.layout-m { flex: 1; height: auto; }
+.layout-m > .panel { flex: 1 0 auto; overflow: visible; }
+.layout-m .qhead, .layout-m .search-head { top: var(--safe-top); }
+.layout-m .qhead { border-radius: var(--radius-card) var(--radius-card) 0 0; }
+/* Striscia ferma sotto notch / Dynamic Island: il contenuto che scorre non ci passa sotto in vista. */
+.layout-m::before {
+  content: ""; position: fixed; z-index: 6; top: 0; left: 0; right: 0; height: var(--safe-top);
+  background: var(--bg); pointer-events: none;
+}
 
 /* ---------- pillole di stato ---------- */
 .pill {
@@ -334,8 +352,12 @@ button { font: inherit; color: inherit; }
 .np__spacer { flex: 1; }
 .np__volume { display: flex; align-items: center; gap: 8px; min-width: 0; }
 
-/* lettore orizzontale: tre zone in riga a tutta altezza del pannello (copertina · testo e comandi · fader).
-   Le misure in cqh/cqw sono del contenitore .np-fit (corpo del pannello). */
+/* ---------- lettore nel pannello: cinque forme (tavola «Lettore · quattro layout», sceltaForma in NowPlaying.jsx) ----------
+   Le misure in cqh/cqw sono del contenitore .np-fit (corpo del pannello). Il lettore non scorre mai: ogni forma
+   è scelta solo dove ci sta (minimi in Panels.jsx), e l'avviso è una pillola sopra la copertina, fuori dal flusso. */
+.np-fit > .np { overflow: hidden; }
+
+/* Orizzontale (np--o) e via di mezzo (np--mid): tre zone in riga a tutta altezza (copertina · testo e comandi · fader). */
 .np--h { --np-pad: 16px; flex-direction: row; align-items: stretch; gap: 16px; padding: 0 var(--np-pad) var(--np-pad); }
 /* copertina quadrata: lato = altezza utile (fino a 320 px); in larghezza lascia ~300 px a testo e comandi
    (ma almeno il 38% della larghezza, se il pannello è stretto) */
@@ -347,6 +369,8 @@ button { font: inherit; color: inherit; }
 .np--h .np__title { font-size: 22px; }
 .np--h .np__deck { display: flex; flex-direction: column; gap: clamp(8px, 3cqh, 20px); }
 .np--h .np__controls { justify-content: center; gap: 20px; }
+/* via di mezzo: testo, barra (tempi sotto) e comandi uno sotto l'altro, 16 px tra l'uno e l'altro */
+.np--mid .np__body, .np--mid .np__deck { gap: 16px; }
 
 /* fader verticale del volume, come in una console da DJ */
 .fader { flex: none; width: 48px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 0; }
@@ -371,16 +395,22 @@ button { font: inherit; color: inherit; }
 .fader.is-held .fader__cap { transform: scale(1.06); }
 .fader .icon-btn { flex: none; }
 
-/* poco spazio in altezza: titolo su una riga; se il pannello è anche largo, avanzamento e comandi sulla
-   stessa riga (se è stretto restano uno sotto l'altro, così la barra non diventa minuscola) */
+/* poco spazio in altezza: titolo su una riga */
 @container npbox (max-height: 214px) {
   .np--h .np__title { -webkit-line-clamp: 1; }
   .fader { gap: 4px; }
 }
-@container npbox (max-height: 214px) and (min-width: 640px) {
-  .np--h .np__deck { flex-direction: row; align-items: center; gap: 12px; }
-  .np--h .np__deck > .np__progress { flex: 1; min-width: 0; order: 2; }
-  .np--h .np__deck > .np__controls { order: 1; gap: 8px; }
+/* Orizzontale largo almeno 640 px: comandi e barra sulla stessa riga, tempi ai lati della barra. Più stretto:
+   barra (tempi sotto) e comandi uno sotto l'altro, così la barra non diventa minuscola. */
+@container npbox (min-width: 640px) {
+  .np--o .np__deck { flex-direction: row; align-items: center; gap: 12px; }
+  .np--o .np__deck > .np__progress { flex: 1; min-width: 0; order: 2; }
+  .np--o .np__deck > .np__controls { order: 1; gap: 8px; }
+  .np--o .np__progress--inline { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  .np--o .np__progress--inline .progress__times { display: contents; }
+  .np--o .np__progress--inline .progress__times > :first-child { grid-column: 1; grid-row: 1; }
+  .np--o .np__progress--inline .progress__hit { grid-column: 2; grid-row: 1; }
+  .np--o .np__progress--inline .progress__times > :last-child { grid-column: 3; grid-row: 1; }
 }
 /* pochissimo spazio: niente riga dello stato (lo dice il tasto play), play più piccolo */
 @container npbox ((max-height: 150px) or ((max-height: 170px) and (max-width: 639.98px))) {
@@ -390,20 +420,88 @@ button { font: inherit; color: inherit; }
   .np--h .big-play { --play: 44px; }
   .fader__hit { min-height: 40px; }
 }
-
+/* Orizzontale stretto (barra e comandi impilati) e basso: spazi più corti, così il blocco sta nel corpo e i comandi
+   si staccano dal fondo (fondo del play appena sopra il fondo della copertina, non più sotto). */
+@container npbox (max-height: 170px) and (max-width: 639.98px) {
+  .np--o .np__body, .np--o .np__deck { gap: 4px; }
+  .np--o .np__meta { gap: 2px; }
+  .np--o .np__progress { gap: 3px; }
+}
 /* basso e stretto insieme: via anche la riga dell'autore, per non tagliare i comandi */
 @container npbox (max-height: 130px) and (max-width: 639.98px) {
   .np--h .np__artist { display: none; }
 }
 
-/* lettore verticale (vista A): se avanza spazio il blocco sta al centro, se manca la copertina si rimpicciolisce */
+/* Verticale (L/A < 0,8): copertina 160–320 px in alto; se avanza spazio il blocco sta al centro, se manca la
+   copertina si rimpicciolisce (sotto 160 px si passa al Quadrato). Volume orizzontale in fondo. */
 .np--v { padding: 18px 20px; gap: 14px; justify-content: safe center; }
-.np-fit > .np--v { overflow-y: auto; scrollbar-width: thin; }
+.np-fit > .np--v { padding-top: 18px; }
 .np--v .np__artbox { flex: 0 1 240px; min-height: 0; container-type: size; display: grid; place-items: center; }
+.np-fit .np--v .np__artbox { flex-basis: 320px; }
 .np--v .np__art { width: min(100cqw, 100cqh, 240px); }
+.np-fit .np--v .np__art { width: min(100cqw, 100cqh, 320px); }
 .np--v .np__controls { justify-content: center; gap: 20px; }
-.np--v .np__bottom { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-.np--v .np__volume { flex: 1; }
+.np--v .np__bottom, .np--c .np__bottom { flex: none; display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.np--v .np__volume, .np--c .np__volume { flex: 1; }
+
+/* Quadrato (L/A 0,8–1,3): copertina 120–240 px col fader accanto, alto quanto lei; sotto testo, barra, comandi. */
+.np-fit > .np--q { padding: 16px; gap: 12px; justify-content: safe center; }
+.np--q .np__qtop { flex: 0 1 240px; min-height: 0; container-type: size; display: flex; justify-content: center; align-items: center; }
+.np--q .np__qpair { display: flex; gap: 16px; height: min(100cqh, 240px, 100cqw - 64px); }
+.np--q .np__art { height: 100%; width: auto; aspect-ratio: 1; }
+.np--q .np__art .cover--lg { width: 100%; height: 100%; }
+.np--q .fader { height: 100%; }
+.np--q .fader__hit { min-height: 40px; }
+.np--q .np__meta, .np--c .np__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.np--q .np__controls, .np--c .np__controls { justify-content: center; gap: 20px; }
+/* poco spazio: titolo su una riga (la copertina guadagna ~27 px) */
+@container npbox (max-height: 405px) {
+  .np--q .np__title { -webkit-line-clamp: 1; }
+}
+
+/* Compatto (pannelli piccoli, es. 300 × 320): riga copertina 64–96 px + testo, sotto barra, comandi, volume. */
+.np-fit > .np--c { padding: 12px 14px; gap: 10px; justify-content: safe center; }
+.np--c .np__row { flex: none; display: flex; gap: 12px; align-items: center; }
+.np--c .np__art { width: clamp(64px, 100cqh - 184px, 96px); }
+.np--c .np__meta { flex: 1; }
+.np--c .np__title { font-size: var(--fs-h); -webkit-line-clamp: 1; }
+
+/* Avviso del canale (bot uscito, canale vuoto…): pillola in basso sopra la copertina. Non occupa spazio nel
+   flusso, quindi con o senza avviso le altezze sono le stesse. Fondo arancione scuro quasi pieno e ombra:
+   si legge su copertine chiare e scure. Tre testi secondo la larghezza della copertina (presenceShort). */
+.np-fit .np__art { container: npart / inline-size; }
+.np__pill {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 1;
+  display: flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--warn-bg) 94%, transparent); color: var(--warn-text);
+  font-size: var(--fs-small); font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(0 0 0 / 0.25);
+  cursor: default;
+}
+.np__pill svg { flex: none; width: 14px; height: 14px; color: var(--warn-icon); }
+.np__pill-txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np__pill-txt--minimo, .np__pill-txt--micro { display: none; }
+/* copertina sotto i 214 px: il testo corto non ci sta intero → «Esce tra 0:45» / «Bot uscito», pillola più stretta ai bordi */
+@container npart (max-width: 213.98px) {
+  .np__pill { left: 6px; right: 6px; bottom: 6px; gap: 4px; padding: 0 7px; }
+  .np__pill-txt--corto { display: none; }
+  .np__pill-txt--minimo { display: block; }
+}
+/* copertina piccola (Compatto, sotto 115 px): senza icona (la pillola arancione dice già «avviso»), «Esce 0:45» */
+@container npart (max-width: 114.98px) {
+  .np__pill { left: 4px; right: 4px; bottom: 4px; padding: 0 6px; justify-content: center; }
+  .np__pill svg { display: none; }
+  .np__pill-txt--minimo { display: none; }
+  .np__pill-txt--micro { display: block; }
+}
+
+/* diretta: badge LIVE al posto della durata */
+.np__live {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+  background: rgb(255 92 92 / 0.16); color: #ff8a8a;
+  font-size: var(--fs-small); font-weight: 600; letter-spacing: 0.02em; line-height: 1;
+}
 
 /* lettore compatto (telefono) */
 .np--m { padding: 12px 14px; gap: 10px; flex: none; }
@@ -415,11 +513,6 @@ button { font: inherit; color: inherit; }
 
 /* barra di avanzamento */
 .np__progress { display: flex; flex-direction: column; gap: 6px; }
-.np__progress--inline { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
-.np__progress--inline .progress__times { display: contents; }
-.np__progress--inline .progress__times span:first-child { grid-column: 1; grid-row: 1; }
-.np__progress--inline .progress__hit { grid-column: 2; grid-row: 1; }
-.np__progress--inline .progress__times span:last-child { grid-column: 3; grid-row: 1; }
 .progress__track { height: 4px; border-radius: 999px; background: var(--track); overflow: hidden; }
 .progress__fill { height: 100%; border-radius: inherit; background: var(--text); transition: width 0.25s linear, background-color 0.15s; }
 .np__progress:hover .progress__fill { background: var(--accent); }
@@ -530,8 +623,13 @@ button { font: inherit; color: inherit; }
   user-select: none;
   cursor: pointer;
 }
-.qrow:hover, .qrow:has(:focus-visible) { background: var(--hover); }
-.qrow:active:not(:has(.qrow__grip:active, .qrow__acts :active)) { background: var(--hover-strong); }
+.qrow:has(:focus-visible) { background: var(--hover); }
+/* Effetti al passaggio solo con un mouse vero: sul telefono :hover e :active restavano «appiccicati» alla riga
+   toccata (o attraversata dal dito scorrendo) e la evidenziavano. */
+@media (hover: hover) {
+  .qrow:hover { background: var(--hover); }
+  .qrow:active:not(:has(.qrow__grip:active, .qrow__acts :active)) { background: var(--hover-strong); }
+}
 .qrow.is-dragging { z-index: 4; background: var(--card-2); cursor: grabbing; box-shadow: 0 8px 20px rgb(0 0 0 / 0.4); }
 .qrow__grip {
   display: grid; place-items: center;
@@ -540,8 +638,11 @@ button { font: inherit; color: inherit; }
   color: var(--text-2); cursor: grab; touch-action: none;
   opacity: 0; transition: opacity 0.15s;
 }
-.qrow__grip:hover { color: var(--text); }
-.qrow:hover .qrow__grip, .qrow__grip:focus-visible, .qrow.is-dragging .qrow__grip { opacity: 1; }
+.qrow__grip:focus-visible, .qrow.is-dragging .qrow__grip { opacity: 1; }
+@media (hover: hover) {
+  .qrow__grip:hover { color: var(--text); }
+  .qrow:hover .qrow__grip { opacity: 1; }
+}
 .qrow__main {
   display: contents;
 }
@@ -560,7 +661,8 @@ button { font: inherit; color: inherit; }
   opacity: 0; pointer-events: none;
 }
 .qrow { --row-bg: color-mix(in srgb, #fff 6%, var(--card)); }
-.qrow:hover > .qrow__acts, .qrow > .qrow__acts:focus-within { opacity: 1; pointer-events: auto; }
+.qrow > .qrow__acts:focus-within { opacity: 1; pointer-events: auto; }
+@media (hover: hover) { .qrow:hover > .qrow__acts { opacity: 1; pointer-events: auto; } }
 .qrow__top[hidden] { display: inline-grid; visibility: hidden; }
 @media (hover: none) {
   .qrow__grip { opacity: 1; }
@@ -591,8 +693,12 @@ button { font: inherit; color: inherit; }
 }
 .qrow--result .qrow__num { display: grid; place-items: center; height: 24px; }
 .qrow__playicon { display: none; color: var(--text); }
-.qrow--result:hover .qrow__index, .qrow--result:has(:focus-visible) .qrow__index { display: none; }
-.qrow--result:hover .qrow__playicon, .qrow--result:has(:focus-visible) .qrow__playicon { display: block; }
+.qrow--result:has(:focus-visible) .qrow__index { display: none; }
+.qrow--result:has(:focus-visible) .qrow__playicon { display: block; }
+@media (hover: hover) {
+  .qrow--result:hover .qrow__index { display: none; }
+  .qrow--result:hover .qrow__playicon { display: block; }
+}
 /* Più specifica di «.qrow > :not(.qrow__btn, .qrow__acts)»: nei risultati le pillole devono ricevere il clic. */
 .qrow.qrow--result > * { pointer-events: auto; }
 .qrow__art { position: relative; width: 32px; height: 32px; }
@@ -708,7 +814,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- connessione persa o accesso negato ---------- */
 .conn-banner {
-  position: fixed; z-index: 30; top: 72px; left: 50%; transform: translateX(-50%);
+  position: fixed; z-index: 30; top: calc(72px + var(--safe-top)); left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px;
   max-width: min(560px, calc(100vw - 32px));
   padding: 10px 16px; border-radius: var(--radius);
@@ -731,7 +837,7 @@ button { font: inherit; color: inherit; }
   .qblock .qrow__by { display: none; }
 }
 @media (max-width: 900px) {
-  .app { padding: 10px 12px max(12px, var(--safe-bottom)); }
+  .app { padding: calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) max(12px, var(--safe-bottom)) calc(12px + var(--safe-left)); }
   .qrow { grid-template-columns: 16px 26px 32px minmax(0, 1fr) 44px; }
   .qrow__by { display: none; }
   .np--m .np__controls .icon-btn { width: 44px; height: 44px; }
@@ -810,6 +916,21 @@ button { font: inherit; color: inherit; }
 .pl__meta { font-variant-numeric: tabular-nums; padding-right: 8px; }
 .pl__acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .pl__acts .cpill { height: 32px; padding: 0 10px 0 8px; }
+/* Playlist stretta (tavola «Pulsanti con testo»): invece di andare a capo, «Sostituisci la coda» si accorcia in
+   «Sostituisci» e le due pillole restano su una riga, sempre con icona e testo. Misure dell'anteprima (larghezza
+   di .pl__acts, cioè il contenuto di .pl): intere 83 + 8 + 145 = 236 px; corte 83 + 8 + 99 = 190 px. Sotto 190
+   (pannello laterale verso il minimo di 240 px, 180 px di pillole) si stringono margini e spazi: 79 + 6 + 95. */
+.pl { container: pl / inline-size; }
+.pl__txt--corto { display: none; }
+@container pl (max-width: 237.98px) {
+  .pl__acts { flex-wrap: nowrap; }
+  .pl__txt--lungo { display: none; }
+  .pl__txt--corto { display: inline; }
+}
+@container pl (max-width: 191.98px) {
+  .pl__acts { gap: 6px; }
+  .pl__acts .cpill { padding: 0 8px 0 6px; gap: 5px; }
+}
 .pl__confirm { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; padding: 12px 8px 0 0; border-top: 1px solid rgb(255 255 255 / 0.08); }
 .pl__confirm p { font-size: var(--fs-small); color: var(--text); text-wrap: pretty; }
 .pl__rename { display: flex; flex-direction: column; gap: 12px; padding-right: 8px; }
@@ -845,7 +966,8 @@ button { font: inherit; color: inherit; }
 
 /* ---------- riga della coda: maniglia vicina al numero, trascinamento da tutta la riga (Queue.jsx) ---------- */
 /* La colonna del numero parte 4 px dopo la maniglia (la griglia ha 8 px tra le colonne): numeri allineati a
-   sinistra, uguali per la riga in corso (n° 1) e le altre; copertina e titolo restano dove erano. */
+   sinistra, uguali per la riga in corso (n° 1) e le altre; copertina e titolo restano dove erano.
+   Le righe della Coda (.qrow2) hanno colonne e maniglia proprie in coda.css (tavola «CodaRighe», 26-10-2026). */
 .qrow > .qrow__num { text-align: left; margin-left: -4px; }
 .qrow--drag { -webkit-touch-callout: none; }
 .qrow--drag:active .qrow__btn { cursor: grab; }
@@ -883,8 +1005,6 @@ button { font: inherit; color: inherit; }
 @container pnl (max-width: 260px) {
   .sounds { grid-template-columns: minmax(0, 1fr); }
 }
-/* Lettore verticale: la copertina non si riduce a una striscia; se manca altezza il lettore scorre. */
-.np--v .np__artbox { min-height: 96px; }
 /* Nel canale stretto: gli stati solo icona (il testo resta per i lettori di schermo e nel title). */
 @container presenza (max-width: 260px) {
   .presence .person__state-txt {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { suggerimento } from './Suggerimento.jsx';
 import { createPortal } from 'react-dom';
 import * as I from './icons.jsx';
-import { CHOICES, CUSTOM, LAYOUT_KEY, PANEL_GAP, PRESETS, MINI_EMPTY, Mini, labelOf, miniOf } from './Panels.jsx';
+import { CHOICES, CUSTOM, LAYOUT_KEY, PANEL_GAP, PRESETS, MINI_EMPTY, Mini, labelOf, leggiDisposizione, miniOf, stessaDisposizione } from './Panels.jsx';
+import { INTENSITA, PANNELLI } from './ambiente.js';
+import { Volume } from './NowPlaying.jsx';
 import './intestazione.css';
 
 /**
@@ -10,7 +12,7 @@ import './intestazione.css';
  *  verde  = bot nel canale e musica che suona;
  *  arancio = nel canale ma musica ferma (pausa, coda vuota, uscita in arrivo);
  *  rosso  = bot fuori dal canale o non collegato.
- * Un clic sul titolo apre il menu: stato, Ferma, Disposizione, Esporta disposizione.
+ * Un clic sul titolo apre il menu: stato, Ferma, Disposizione, Esporta e Importa disposizione, Aspetto (Modalità Ambiente).
  */
 const COLORI = { ok: '#1ed760', warn: '#ffa42b', off: '#f15e6c' };
 
@@ -186,11 +188,122 @@ function ExportDialog({ lay, onClose }) {
   );
 }
 
-export default function Intestazione({ info, state, send, lay, phone = false, pos = 'tl', onPos }) {
+/** Tab e Maiusc+Tab restano dentro il riquadro (area di testo e pulsanti). */
+function tienFuoco(e) {
+  const els = [...e.currentTarget.querySelectorAll('textarea, button:not(:disabled)')];
+  if (!els.length) return;
+  const i = els.indexOf(document.activeElement);
+  const to = e.shiftKey ? (i <= 0 ? els.length - 1 : i - 1) : (i === els.length - 1 ? 0 : i + 1);
+  e.preventDefault();
+  els[to].focus();
+}
+
+/**
+ * «Importa disposizione»: si incolla il testo di «Esporta disposizione» (o solo { cols, w, ratio, chiuse }).
+ * Le regole sono quelle del caricamento (leggiDisposizione in Panels.jsx); se non va, l'errore resta sotto
+ * l'area di testo e non cambia niente. Se c'è già una Personalizzata diversa si chiede conferma con le miniature.
+ */
+function ImportDialog({ lay, onClose }) {
+  const [testo, setTesto] = useState('');
+  const [errore, setErrore] = useState(null);
+  const [nuova, setNuova] = useState(null); // disposizione valida in attesa di conferma
+  const areaRef = useRef(null);
+  const sostRef = useRef(null);
+
+  useEffect(() => {
+    if (nuova) sostRef.current?.focus();
+    else areaRef.current?.focus();
+  }, [nuova]);
+
+  const applica = (l) => {
+    lay.importa(l);
+    onClose();
+  };
+  const importa = () => {
+    const { layout, errore: err } = leggiDisposizione(testo);
+    if (!layout) {
+      setErrore(err);
+      areaRef.current?.focus();
+      return;
+    }
+    if (lay.custom && !stessaDisposizione(lay.custom, layout)) setNuova(layout);
+    else applica(layout);
+  };
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nuova) setNuova(null);
+      else onClose();
+    } else if (e.key === 'Tab') tienFuoco(e);
+    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !nuova) {
+      e.preventDefault();
+      importa();
+    }
+  };
+
+  return createPortal(
+    <div className="modal" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal__box" role="dialog" aria-modal="true" aria-labelledby="importa-titolo" onKeyDown={onKey}>
+        <h2 id="importa-titolo" className="modal__title">Importa disposizione</h2>
+        {nuova ? (
+          <>
+            <p className="modal__text" id="importa-conferma">
+              Hai già una Personalizzata diversa: sostituirla con quella importata? La disposizione di adesso si perde.
+            </p>
+            <div className="modal__minis" aria-hidden="true">
+              <figure><Mini cols={miniOf(lay.custom)} /><figcaption>Adesso</figcaption></figure>
+              <I.Chevron width={18} height={18} className="modal__freccia" />
+              <figure><Mini cols={miniOf(nuova)} state="on" /><figcaption>Importata</figcaption></figure>
+            </div>
+            <div className="modal__foot">
+              <button type="button" className="modal__btn" onClick={() => setNuova(null)}>Indietro</button>
+              <button type="button" className="modal__btn modal__btn--main" ref={sostRef} aria-describedby="importa-conferma" onClick={() => applica(nuova)}>
+                Sostituisci
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="modal__text" id="importa-aiuto">
+              Incolla qui il testo di «Esporta disposizione»: diventa la tua disposizione Personalizzata, salvata in questo browser.
+            </p>
+            <textarea
+              ref={areaRef}
+              className={`modal__area${errore ? ' is-bad' : ''}`}
+              spellCheck={false}
+              value={testo}
+              placeholder='{"formato": 2, "disposizione": { "cols": … }}'
+              aria-label="Disposizione da importare, in formato JSON"
+              aria-invalid={errore ? true : undefined}
+              aria-describedby={errore ? 'importa-errore' : 'importa-aiuto'}
+              onChange={(e) => {
+                setTesto(e.target.value);
+                setErrore(null);
+              }}
+            />
+            {errore && <p className="modal__err" id="importa-errore" role="alert">{errore}</p>}
+            <div className="modal__foot">
+              <button type="button" className="modal__btn" onClick={onClose}>Annulla</button>
+              <button type="button" className="modal__btn modal__btn--main" disabled={!testo.trim()} onClick={importa}>
+                Importa
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+export default function Intestazione({ info, state, send, lay, phone = false, pos = 'tl', onPos, amb }) {
   const [open, setOpen] = useState(() => riapriSuPosizione); // il segnale si spegne nell'effetto su `pos`
   const fuocoPos = useRef(open);
   const [confirm, setConfirm] = useState(false);
   const [esporta, setEsporta] = useState(false);
+  const [importa, setImporta] = useState(false);
   const boxRef = useRef(null);
   const btnRef = useRef(null);
   const popRef = useRef(null);
@@ -251,6 +364,8 @@ export default function Intestazione({ info, state, send, lay, phone = false, po
       return;
     }
     if (confirm) return; // nella conferma Tab passa tra Ripristina e Annulla
+    // Sul cursore del volume (telefono) le frecce cambiano il volume, non la voce del menu.
+    if (e.target?.type === 'range' && e.key !== 'Tab') return;
     if (e.key === 'Tab') {
       e.preventDefault();
       close(true);
@@ -339,6 +454,17 @@ export default function Intestazione({ info, state, send, lay, phone = false, po
             </button>
           )}
 
+          {phone && (
+            // Telefono: il Lettore a pagina intera non c'è più, il volume sta qui (decisione provvisoria, 26-10-2026).
+            <>
+              {(canStop || canLeave) && <div className="tmenu__sep" role="separator" />}
+              <p className="tmenu__lab" id="titolo-vol-lab">Volume</p>
+              <div className="tmenu__vol" role="group" aria-labelledby="titolo-vol-lab">
+                <Volume state={state} send={send} />
+              </div>
+            </>
+          )}
+
           {!phone && (
             <>
               {(canStop || canLeave) && <div className="tmenu__sep" role="separator" />}
@@ -412,6 +538,23 @@ export default function Intestazione({ info, state, send, lay, phone = false, po
                 </span>
                 Esporta disposizione
               </button>
+              <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                className="mi"
+                onClick={() => {
+                  close(false);
+                  setImporta(true);
+                }}
+              >
+                <span className="mi__ico">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 15V3" /><path d="m7 8 5-5 5 5" /><path d="M5 21h14" />
+                  </svg>
+                </span>
+                Importa disposizione
+              </button>
               {confirm ? (
                 <div className="tmenu__confirm" role="group" aria-labelledby="titolo-confirm-txt">
                   <p id="titolo-confirm-txt">Riportare la Personalizzata alla disposizione di partenza (Player orizzontale)? Gli spostamenti fatti si perdono.</p>
@@ -445,7 +588,78 @@ export default function Intestazione({ info, state, send, lay, phone = false, po
               )}
             </>
           )}
+
+          {amb && (
+            <>
+              <div className="tmenu__sep" role="separator" />
+              <p className="tmenu__lab" aria-hidden="true">Aspetto</p>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={amb.on}
+                tabIndex={-1}
+                className="mi"
+                title="Lo sfondo prende i colori della copertina del brano in corso"
+                onClick={() => amb.accendi(!amb.on)}
+              >
+                <span className="mi__ico">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" /><circle cx="9" cy="10" r="1.5" /><circle cx="15" cy="9" r="1.5" /><circle cx="14" cy="15" r="1.5" />
+                  </svg>
+                </span>
+                <span className="mi__txt">Modalità Ambiente</span>
+                <span className={`msw${amb.on ? ' msw--on' : ''}`} aria-hidden="true" />
+              </button>
+              {amb.on && (
+                <>
+                  <p className="tmenu__lab tmenu__lab--sub" id="titolo-amb-int">Intensità</p>
+                  <div className="tmenu__seg" role="group" aria-labelledby="titolo-amb-int">
+                    {INTENSITA.map(([k, label, pct]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={amb.intensita === k}
+                        aria-label={`${label}, ${pct} %`}
+                        tabIndex={-1}
+                        className="mseg"
+                        onClick={() => amb.scegliIntensita(k)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="tmenu__lab tmenu__lab--sub" id="titolo-amb-pan">Pannelli</p>
+                  <div className="tmenu__seg" role="group" aria-labelledby="titolo-amb-pan">
+                    {PANNELLI.map(([k, label]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={amb.pannelli === k}
+                        tabIndex={-1}
+                        className="mseg"
+                        title={k === 'traslucidi' ? 'Il colore passa anche dentro i pannelli (84 %)' : 'Pannelli pieni: leggibilità massima'}
+                        onClick={() => amb.scegliPannelli(k)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
+      )}
+      {importa && (
+        <ImportDialog
+          lay={lay}
+          onClose={() => {
+            setImporta(false);
+            btnRef.current?.focus();
+          }}
+        />
       )}
       {esporta && (
         <ExportDialog
