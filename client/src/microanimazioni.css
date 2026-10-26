@@ -1,0 +1,67 @@
+/* Microanimazioni approvate (tavola «Microanimazioni» dell'artifact redesign). Caricato per ultimo in main.jsx.
+   Durate 100-260 ms, solo transform/opacity (l'unica eccezione è la larghezza del campo di ricerca, fatta in
+   CampoAnimato.jsx dentro la barra alta e fissa del pannello). Testo mai sotto 13 px: qui non cambia.
+   Movimento ridotto: in fondo; senza scale né spostamenti, restano dissolvenze di ~90 ms. */
+
+:root { --anim-ease: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* 1. Ricerca nella Coda -------------------------------------------------------------------------------- */
+/* Campo: CampoAnimato.jsx (250 ms). Pulsanti che entrano nella barra: dissolvenza 150 ms. */
+.pnl__bar > .cpill,
+.pnl__bar > .cclear,
+.pnl__bar > .qtools__count { animation: anim-fade 150ms ease-out; }
+
+/* Elenco: i risultati salgono dal basso di 6 px, la coda torna dall'alto di 6 px; 200 ms, in dissolvenza. */
+.view--search { animation: anim-up 200ms ease-out; }
+.view--coda { animation: anim-down 200ms ease-out; }
+
+/* 2. Cambio scheda (Soundbar | Libreria | Recenti) -------------------------------------------------- */
+.seg { position: relative; }
+.seg__b { position: relative; z-index: 1; }
+.seg__ind {
+  position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 0;
+  border-radius: 7px; background: rgb(30 215 96 / 0.14); pointer-events: none;
+}
+.seg__ind--go { transition: transform 220ms cubic-bezier(0.3, 0.7, 0.2, 1), width 220ms cubic-bezier(0.3, 0.7, 0.2, 1); }
+/* Il fondo verde ora lo fa l'indicatore: il pulsante attivo resta trasparente e cambia solo il colore. */
+.seg__b--on, .seg__b--on:hover { background: transparent; }
+.seg__b { transition: color 180ms ease-out, background-color 120ms ease-out, transform 100ms ease-out; }
+/* Contenuto della scheda: dissolvenza con 4 px di salita, 180 ms. */
+.suoni-body { animation: anim-up-s 180ms ease-out; }
+
+/* 3. Menu dell'intestazione e conferma "Svuota": 150 ms, scala 0.97 -> 1 più dissolvenza. */
+.tmenu { transform-origin: top left; animation: anim-pop 150ms ease-out; }
+.cclear__pop { transform-origin: top right; animation: anim-pop 150ms ease-out; }
+
+/* 4. Brano aggiunto alla coda: ingresso 260 ms e striscia verde che sfuma in 1,4 s. */
+.qrow--fresh { animation: anim-row 260ms var(--anim-ease) both, anim-flash 1400ms ease-out both; }
+
+/* 5. Pressione dei pulsanti: scala 0.97 in 100 ms, colore in 120 ms. */
+.cpill, .btn, .btn-pill, .icon-btn, .pill--tab, .mi, .modal__btn, .tmenu__btn, .cclear__btn, .apill {
+  transition: transform 100ms ease-out, background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.cpill:active:not(:disabled), .btn:active:not(:disabled), .btn-pill:active:not(:disabled),
+.icon-btn:active:not(:disabled), .pill--tab:active, .modal__btn:active, .tmenu__btn:active,
+.cclear__btn:active, .apill:active:not(:disabled), .seg__b:active { transform: scale(0.97); }
+
+@keyframes anim-fade { from { opacity: 0; } }
+@keyframes anim-up { from { opacity: 0; transform: translateY(6px); } }
+@keyframes anim-down { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes anim-up-s { from { opacity: 0; transform: translateY(4px); } }
+@keyframes anim-pop { from { opacity: 0; transform: scale(0.97); } }
+@keyframes anim-row { from { opacity: 0; transform: translateY(-8px); } }
+@keyframes anim-flash { from { background-color: rgb(30 215 96 / 0.3); } to { background-color: rgb(30 215 96 / 0); } }
+@keyframes anim-opacity { from { opacity: 0; } }
+
+/* Movimento ridotto: niente scale né spostamenti, solo dissolvenze brevi (~90 ms). styles.css spegne tutto
+   con `*`; qui, con più specificità, tornano soltanto le dissolvenze. */
+@media (prefers-reduced-motion: reduce) {
+  .pnl__bar > .cpill, .pnl__bar > .cclear, .pnl__bar > .qtools__count,
+  .view--search, .view--coda, .suoni-body, .tmenu, .cclear__pop, .qrow--fresh {
+    animation: anim-opacity 90ms linear !important;
+  }
+  .qrow--fresh { animation: anim-opacity 90ms linear, anim-flash 1400ms ease-out both !important; }
+  .seg__ind--go { transition: none !important; }
+  .cpill:active, .btn:active, .btn-pill:active, .icon-btn:active, .pill--tab:active, .modal__btn:active,
+  .tmenu__btn:active, .cclear__btn:active, .apill:active, .seg__b:active { transform: none !important; }
+}

@@ -1,0 +1,25 @@
+node_modules
+dist
+.env
+.playwright-cli
+.taste-skill
+*.log
+dist-prova
+/data/
+
+# Cartelle di backup locali e file temporanei
+.backup-*/
+.backup-*
+*.tmp
+*.bak
+client/dist
+client/dist-prova
+client/node_modules
+server/node_modules
+.DS_Store
+Thumbs.db
+.claude/
+
+# Documentazione interna e configurazione locale
+docs/
+docker-compose.override.yml

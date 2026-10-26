@@ -1,0 +1,61 @@
+name: discord-music
+
+services:
+  bot:
+    build: .
+    image: discord-music:latest
+    container_name: discord-music-bot
+    env_file: .env
+    environment:
+      # Nel container la porta è sempre 3001 (il proxy HTTPS deve puntare qui)
+      PORT: "3001"
+      # Coda salvata: sopravvive a riavvii e ricostruzioni dell'immagine
+      DATA_DIR: /app/data
+      # Soundbar: ruoli che possono caricare suoni (ID separati da virgola, non è un segreto).
+      # Vuoto = solo gli amministratori del server. Suonare: tutti.
+      SOUNDBAR_RUOLO_ID: ${SOUNDBAR_RUOLO_ID:-}
+    volumes:
+      # Volume nominato (non una cartella del PC): Docker lo crea con proprietario node (uid 1000)
+      - dati:/app/data
+    ports:
+      # Su tutte le interfacce: serve al proxy HTTPS davanti al bot. Limita gli accessi con il firewall
+      - "3001:3001"
+    restart: unless-stopped
+    # Limiti misurati il 25-10-2026: a riposo ~100 MB; in riproduzione + cache piena (96 MB) + 2 yt-dlp
+    # insieme il picco è ~630-700 MB (ogni yt-dlp con la sfida JS usa ~265 MB per 3 s). Con 512 MB
+    # una risoluzione verrebbe uccisa: per stare sotto 512 metti YTDLP_CONTEMPORANEI=1 e CACHE_AUDIO_MB=64.
+    mem_limit: 768m
+    # Niente swap: su schede di memoria flash sarebbe lento e le consumerebbe
+    memswap_limit: 768m
+    cpus: 1.5
+    pids_limit: 256
+    # /tmp in RAM: i file temporanei di yt-dlp (ripiego) non toccano il disco
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: discord-music-tunnel
+    # Riserva: si accende solo con «docker compose --profile tunnel up -d».
+    # Di solito il bot si raggiunge dal tuo dominio HTTPS (es. https://tuo-dominio.example) tramite un proxy
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://bot:3001
+    restart: unless-stopped
+    depends_on:
+      bot:
+        condition: service_healthy
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  dati:
+    name: discord-music-dati

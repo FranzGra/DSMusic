@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FranzDSMusic copertina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&display=block" rel="stylesheet">
+<!--
+  Copertina Discord Activity di FranzDSMusic.
+  Unico sorgente, scala con la viewport:
+    1920x1080 / 1280x720  -> layout 16:9 (disco a sinistra, scritta a destra)
+    1024x1024             -> layout quadrato (solo disco, per icona app)
+  Render: playwright-cli resize W H, poi screenshot.
+-->
+<style>
+  :root{
+    --bg:#070907;
+    --ink:#ffffff;
+    --green:#1DB954;
+    --green-dark:#0f6e31;
+    --u: calc(100vw / 1920); /* unita' di disegno: 1 = 1px a 1920 */
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg)}
+  body{
+    position:relative;
+    font-family:"Montserrat",system-ui,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(ellipse at 16% 50%, rgba(29,185,84,.55) 0%, rgba(29,185,84,.18) 32%, rgba(7,9,7,0) 62%),
+      linear-gradient(120deg, #0b2a16 0%, #070907 55%, #050605 100%);
+  }
+  .disc{
+    position:absolute;
+    width:calc(900 * var(--u));
+    height:calc(900 * var(--u));
+    left:calc(-150 * var(--u));
+    top:50%;
+    transform:translateY(-50%);
+    filter:drop-shadow(0 calc(30*var(--u)) calc(60*var(--u)) rgba(0,0,0,.6));
+  }
+  .text{
+    position:absolute;
+    left:calc(840 * var(--u));
+    top:50%;
+    transform:translateY(-52%);
+  }
+  .name{
+    font-weight:900;
+    font-size:calc(225 * var(--u));
+    line-height:.9;
+    letter-spacing:-.035em;
+  }
+  .name .l2{color:var(--green)}
+  .sub{
+    margin-top:calc(46 * var(--u));
+    font-weight:800;
+    font-size:calc(82 * var(--u));
+    letter-spacing:-.01em;
+    color:#e9f7ee;
+  }
+  /* Quadrato: solo il disco, centrato */
+  @media (max-aspect-ratio: 6/5){
+    :root{ --u: calc(100vw / 1024); }
+    body{
+      background:
+        radial-gradient(circle at 50% 50%, rgba(29,185,84,.6) 0%, rgba(29,185,84,.2) 40%, rgba(7,9,7,0) 70%),
+        linear-gradient(135deg, #0b2a16 0%, #070907 60%, #050605 100%);
+    }
+    .disc{width:calc(860*var(--u));height:calc(860*var(--u));left:50%;top:50%;transform:translate(-50%,-50%)}
+    .text{display:none}
+  }
+</style>
+</head>
+<body>
+  <svg class="disc" viewBox="0 0 1000 1000" aria-hidden="true">
+    <defs>
+      <radialGradient id="vinyl" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#1a1a1a"/>
+        <stop offset="100%" stop-color="#0a0a0a"/>
+      </radialGradient>
+      <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="42%" stop-color="#fff" stop-opacity=".10"/>
+        <stop offset="50%" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="58%" stop-color="#fff" stop-opacity=".07"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient>
+      <radialGradient id="label" cx="40%" cy="35%" r="70%">
+        <stop offset="0%" stop-color="#2be06a"/>
+        <stop offset="100%" stop-color="#14953f"/>
+      </radialGradient>
+    </defs>
+    <circle cx="500" cy="500" r="496" fill="url(#vinyl)"/>
+    <circle cx="500" cy="500" r="496" fill="none" stroke="#2a2a2a" stroke-width="6"/>
+    <g fill="none" stroke="#262626" stroke-width="3">
+      <circle cx="500" cy="500" r="460"/><circle cx="500" cy="500" r="430"/>
+      <circle cx="500" cy="500" r="400"/><circle cx="500" cy="500" r="370"/>
+      <circle cx="500" cy="500" r="340"/><circle cx="500" cy="500" r="310"/>
+      <circle cx="500" cy="500" r="280"/><circle cx="500" cy="500" r="250"/>
+    </g>
+    <circle cx="500" cy="500" r="496" fill="url(#sheen)"/>
+    <circle cx="500" cy="500" r="215" fill="url(#label)"/>
+    <!-- equalizzatore nell'etichetta -->
+    <g fill="#071a0d">
+      <rect x="378" y="452" width="34" height="96"  rx="17"/>
+      <rect x="430" y="392" width="34" height="216" rx="17"/>
+      <rect x="482" y="422" width="34" height="156" rx="17"/>
+      <rect x="534" y="372" width="34" height="256" rx="17"/>
+      <rect x="586" y="437" width="34" height="126" rx="17"/>
+    </g>
+  </svg>
+
+  <div class="text">
+    <div class="name"><div>Franz</div><div class="l2">DSMusic</div></div>
+    <div class="sub">Musica insieme</div>
+  </div>
+</body>
+</html>

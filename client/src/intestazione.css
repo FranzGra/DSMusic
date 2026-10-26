@@ -1,0 +1,111 @@
+/* Intestazione: pallino di stato + FranzDSMusic + menu (Intestazione.jsx). Testo mai sotto 13 px. */
+.titolo { position: relative; min-width: 0; }
+.panels__head .titolo, .layout-m__top .titolo { max-width: 100%; }
+
+.tbtn {
+  display: flex; align-items: center; gap: 12px; max-width: 100%;
+  height: 52px; padding: 0 12px 0 6px; margin-left: -6px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.tbtn:hover, .tbtn.is-open { background: var(--hover); }
+.tbtn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.tdot { width: 32px; height: 32px; display: grid; place-items: center; flex: none; }
+.tdot i { display: block; width: 12px; height: 12px; border-radius: 50%; transition: background-color 0.2s, box-shadow 0.2s; }
+.ttxt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tname { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.tname svg { color: var(--text-2); flex: none; }
+.tstat { font-size: var(--fs-small); font-weight: 500; line-height: 1.3; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tmenu {
+  position: absolute; top: calc(100% + 4px); left: -6px; z-index: 20;
+  width: 300px; max-width: calc(100vw - 32px); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  border-radius: 12px; background: #1f1f1f; border: 1px solid #333; box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+}
+/* Angolo scelto (vista a pannelli): a destra il titolo sta contro il bordo destro e il menu si allinea a destra;
+   in basso il menu si apre verso l'alto. Sempre verso l'interno dello schermo e mai più alto della finestra. */
+.titolo--tr, .titolo--br { display: flex; justify-content: flex-end; }
+.titolo--tr .tbtn, .titolo--br .tbtn { margin-left: 0; margin-right: -6px; }
+.titolo--tr .tmenu, .titolo--br .tmenu { left: auto; right: -6px; }
+.titolo--bl .tmenu, .titolo--br .tmenu { top: auto; bottom: calc(100% + 4px); }
+.titolo[class*='titolo--'] .tmenu { max-height: calc(100dvh - 96px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+
+/* Posizione: griglia 2x2, il quadratino acceso indica l'angolo. */
+.tmenu__pos { display: grid; grid-template-columns: repeat(2, 36px); gap: 6px; padding: 2px 10px 8px; }
+.pq {
+  position: relative; width: 36px; height: 36px; padding: 0; border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.22); background: #2a2a2a; cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.pq:hover { border-color: rgb(255 255 255 / 0.45); }
+.pq:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.pq i { position: absolute; width: 14px; height: 8px; border-radius: 3px; background: #8a8a8a; transition: background-color 150ms ease-out; }
+.pq--tl i { left: 4px; top: 4px; }
+.pq--tr i { right: 4px; top: 4px; }
+.pq--bl i { left: 4px; bottom: 4px; }
+.pq--br i { right: 4px; bottom: 4px; }
+.pq[aria-checked='true'] { border-color: var(--accent); background: rgb(30 215 96 / 0.16); }
+.pq[aria-checked='true'] i { background: var(--accent); }
+
+.tmenu__stat { display: flex; align-items: center; gap: 10px; padding: 10px 10px 8px; font-size: var(--fs-small); font-weight: 600; color: var(--text-3); }
+.tmenu__stat i { display: block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.tmenu__lab { padding: 8px 10px 4px; font-size: var(--fs-small); font-weight: 600; color: var(--text-2); }
+.tmenu__sep { height: 1px; margin: 4px 6px; background: #333; }
+.mi {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0 10px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text);
+  font: inherit; font-size: var(--fs-body); font-weight: 500; text-align: left; cursor: pointer;
+}
+.mi:hover, .mi:focus-visible { background: rgb(255 255 255 / 0.07); }
+.mi:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.mi:disabled { color: var(--text-2); cursor: default; }
+.mi[aria-disabled='true'] { color: var(--text-2); cursor: not-allowed; }
+.mi[aria-disabled='true']:hover { background: transparent; }
+.mi--danger { color: #f15e6c; }
+.mi--on { color: var(--accent); }
+.mi__ico { width: 40px; display: grid; place-items: center; flex: none; }
+.mi__txt { flex: 1; min-width: 0; }
+.mi__ico .lmenu__mini { width: 40px; height: 26px; padding: 3px; gap: 2px; }
+.mi__ico .lmenu__mini > span { gap: 2px; }
+.mi--on .lmenu__mini i { background: rgb(30 215 96 / 0.55); }
+
+.tmenu__confirm {
+  display: flex; flex-direction: column; gap: 12px; margin: 4px; padding: 16px;
+  border-radius: 10px; background: rgb(255 255 255 / 0.04); border: 1px solid rgb(240 149 149 / 0.35);
+}
+.tmenu__confirm p { font-size: var(--fs-small); line-height: 1.5; color: var(--text); text-wrap: pretty; }
+.tmenu__btns { display: flex; gap: 12px; }
+.tmenu__btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 36px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--border-strong);
+  background: transparent; color: var(--text); font-size: var(--fs-small); font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.tmenu__btn:hover { background: var(--hover-strong); }
+.tmenu__btn--danger { color: var(--danger); border-color: var(--danger-border); }
+
+/* Riquadro «Esporta disposizione» */
+.modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 0.6); }
+.modal__box {
+  width: min(560px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 20px;
+  border-radius: 12px; background: #1f1f1f; border: 1px solid #333; box-shadow: 0 16px 48px rgb(0 0 0 / 0.6);
+}
+.modal__title { font-size: var(--fs-h); font-weight: 600; }
+.modal__text { font-size: var(--fs-small); line-height: 1.5; color: var(--text-2); }
+.modal__area {
+  flex: 1; min-height: 200px; max-height: 50vh; resize: none; padding: 12px; border-radius: 8px;
+  background: #161616; border: 1px solid var(--border-strong); color: var(--text);
+  font: 13px/1.5 ui-monospace, 'Cascadia Mono', Consolas, monospace; tab-size: 2;
+}
+.modal__area:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.modal__foot { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.modal__msg { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); font-weight: 600; color: var(--accent); }
+.modal__btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px;
+  border-radius: 999px; border: 1px solid var(--border-strong); background: transparent; color: var(--text);
+  font-size: var(--fs-body); font-weight: 600; cursor: pointer;
+}
+.modal__btn:hover { background: var(--hover-strong); }
+.modal__btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.modal__btn--main { background: var(--text); border-color: var(--text); color: #121212; }
+.modal__btn--main:hover { background: #fff; }
+.modal__ico { display: none; }

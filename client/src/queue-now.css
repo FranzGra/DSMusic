@@ -1,0 +1,66 @@
+/* Prima riga della coda: il brano in corso (Queue.jsx, NowRow). Come Spotify: titolo verde,
+   barrette dell'equalizzatore sulla copertina, ferme in pausa o con movimento ridotto. */
+
+.qrow.qnow { cursor: pointer; }
+.qrow.qnow .qrow__btn:disabled { cursor: progress; }
+.qnow__grip { width: 16px; height: 40px; }
+.qrow.qnow .qnow__num,
+.qrow.qnow .qnow__title { color: var(--accent); }
+.qrow.qnow .qnow__title { font-weight: 600; }
+
+/* Copertina 32 px con il velo scuro e le barrette sopra. */
+.qnow__art { position: relative; width: 32px; height: 32px; }
+.qnow__veil {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+}
+.qnow__eq {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 14px;
+}
+.qnow__eq i {
+  display: block; width: 3px; height: 100%;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: qnow-eq 0.9s ease-in-out infinite alternate;
+}
+.qnow__eq i:nth-child(1) { animation-duration: 0.82s; animation-delay: -0.3s; }
+.qnow__eq i:nth-child(2) { animation-duration: 0.64s; animation-delay: -0.55s; }
+.qnow__eq i:nth-child(3) { animation-duration: 0.95s; animation-delay: -0.15s; }
+.qnow__eq i:nth-child(4) { animation-duration: 0.72s; animation-delay: -0.7s; }
+@keyframes qnow-eq {
+  0% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+  100% { transform: scaleY(0.45); }
+}
+
+/* Ferme: in pausa, in caricamento, con movimento ridotto. Altezze diverse, come una foto. */
+.qnow--paused .qnow__eq i { animation: none; }
+.qnow__eq i:nth-child(1) { --still: 0.45; }
+.qnow__eq i:nth-child(2) { --still: 0.9; }
+.qnow__eq i:nth-child(3) { --still: 0.6; }
+.qnow__eq i:nth-child(4) { --still: 0.3; }
+.qnow--paused .qnow__eq i { transform: scaleY(var(--still)); }
+@media (prefers-reduced-motion: reduce) {
+  .qnow__eq i { animation: none !important; transform: scaleY(var(--still)); }
+}
+
+/* Col mouse sopra (o col fuoco) al posto delle barrette compare pausa / riproduci. */
+.qnow__hover { display: none; }
+.qrow.qnow:hover .qnow__eq,
+.qrow.qnow:has(.qrow__btn:focus-visible) .qnow__eq { display: none; }
+.qrow.qnow:hover .qnow__hover,
+.qrow.qnow:has(.qrow__btn:focus-visible) .qnow__hover { display: grid; }
+
+/* Testo solo per i lettori di schermo («In riproduzione» / «In pausa»). */
+.qnow__sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Coda vuota dopo il brano in corso: il messaggio sta sotto la riga, un po' più vicino. */
+.qnow__empty { padding-top: 24px; }

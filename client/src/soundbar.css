@@ -1,0 +1,139 @@
+/* Soundbar: suoni del server (griglia di pulsanti), caricamento, rinomina ed eliminazione. */
+.sb.side-card { gap: 12px; padding-bottom: 0; container: sb / inline-size; }
+.sb__wait { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+.sb__wait .spinner { width: 14px; height: 14px; }
+
+.sb__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sb__tile {
+  position: relative; min-width: 0;
+  border-radius: 12px; border: 1px solid var(--border); background: rgb(255 255 255 / 0.04);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.sb__tile:hover, .sb__tile.is-open { background: rgb(255 255 255 / 0.07); }
+.sb__tile--wide { grid-column: 1 / -1; padding: 16px; }
+.sb__tile--warn { border-color: rgb(240 149 149 / 0.35); }
+.sb__tile.is-on { border-color: rgb(30 215 96 / 0.55); background: rgb(30 215 96 / 0.1); }
+
+.sb__play {
+  position: relative; overflow: hidden;
+  width: 100%; min-height: 64px; padding: 12px 14px 14px; border: 0; border-radius: inherit; background: transparent;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px;
+  color: var(--text); text-align: left; cursor: pointer;
+}
+.sb__tile.has-more .sb__play { padding-right: 44px; }
+.sb__play:disabled { cursor: default; opacity: 0.5; }
+.sb__play:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.sb__name { display: flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; font-size: var(--fs-body); font-weight: 600; }
+.sb__tile.is-on .sb__name { color: var(--accent); }
+.sb__meta { display: flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+.sb__more { position: absolute; top: 6px; right: 6px; }
+.sb__more.is-open { background: var(--hover-strong); color: var(--text); }
+
+/* Barra di avanzamento del suono in corso, sul bordo basso del pulsante. */
+.sb__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgb(255 255 255 / 0.1); }
+.sb__bar-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; animation: sb-avanza linear forwards; }
+@keyframes sb-avanza { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.sb__tile .pop { top: 44px; right: 6px; width: min(264px, calc(100cqw - 16px)); max-width: none; }
+.sb__tile:nth-child(odd) .pop { left: 6px; right: auto; }
+.pop__item.is-on { background: rgb(255 255 255 / 0.07); }
+.sb__spacer { flex: 1; }
+
+.sb__form, .sb__confirm { display: flex; flex-direction: column; gap: 12px; }
+.sb__label { display: flex; flex-direction: column; gap: 6px; }
+.sb__confirm p:first-child { font-size: var(--fs-small); color: var(--text); text-wrap: pretty; }
+.sb__file { margin-top: -4px; }
+
+/* Piede: il pulsante di caricamento resta in vista anche con l'elenco lungo. */
+.sb__foot { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; padding: 4px 0 14px; background: var(--card); }
+.sb__add { width: 100%; justify-content: center; gap: 8px; }
+.sb__role { display: flex; align-items: center; gap: 8px; }
+.sb__role > svg { flex: none; }
+.sb__flash { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-small); line-height: 1.4; }
+.sb__flash > svg { flex: none; margin-top: 1px; }
+.sb__flash--ok { color: var(--accent); }
+
+.sb__empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 24px 16px; text-wrap: balance; }
+.sb__empty-icon { width: 56px; height: 56px; border-radius: 12px; display: grid; place-items: center; background: rgb(255 255 255 / 0.05); color: var(--text-2); }
+.sb__empty-title { font-size: var(--fs-body); font-weight: 600; }
+
+/* Etichetta del suono in corso nel lettore (NowPlaying). */
+.np__suono { display: flex; align-items: center; gap: 8px; max-width: 100%; align-self: flex-start; min-height: 20px; margin: 0; color: var(--accent); font-size: var(--fs-small); font-weight: 600; }
+.np__suono > span { min-width: 0; }
+
+.sb__eq { flex: none; display: inline-flex; align-items: flex-end; gap: 2px; width: 14px; height: 14px; }
+.sb__eq i { flex: 1; height: 100%; background: currentColor; border-radius: 1px; transform-origin: bottom; animation: sb-eq 0.8s ease-in-out infinite alternate; }
+.sb__eq i:nth-child(1) { animation-duration: 0.7s; animation-delay: -0.3s; }
+.sb__eq i:nth-child(2) { animation-duration: 0.55s; animation-delay: -0.5s; }
+.sb__eq i:nth-child(3) { animation-duration: 0.9s; animation-delay: -0.1s; }
+.sb__eq i:nth-child(4) { animation-duration: 0.65s; animation-delay: -0.6s; }
+@keyframes sb-eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+
+/* Pannello stretto: un suono per riga, così il nome si legge. */
+@container sb (max-width: 360px) {
+  .sb__tile:nth-child(odd) .pop { left: auto; right: 6px; }
+  .sb__grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .sb__play { min-height: 56px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb__eq i { animation: none; transform: scaleY(0.7); }
+}
+
+/* ---------- Volume dei suoni: pillola sul pulsante, cursore 10%-200% (caricamento e menu) ---------- */
+.vb {
+  flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px;
+  background: rgb(255 255 255 / 0.08); color: #d4d4d4; font-size: var(--fs-small); font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums; white-space: nowrap; transition: background-color 0.18s;
+}
+.sb__tile:hover .vb { background: rgb(255 255 255 / 0.14); }
+.vb--up { background: rgb(30 215 96 / 0.14); color: var(--accent); }
+.sb__tile:hover .vb--up { background: rgb(30 215 96 / 0.22); }
+
+.vol { display: grid; grid-template-columns: 20px minmax(0, 1fr) 52px; align-items: center; column-gap: 12px; row-gap: 2px; }
+.vol--noico { grid-template-columns: minmax(0, 1fr) 52px; }
+.vol__ico { display: grid; place-items: center; color: var(--text-2); }
+.vol__track { position: relative; height: 28px; display: flex; align-items: center; }
+.vol__range {
+  --frac: 0.47; --fill: var(--accent);
+  appearance: none; -webkit-appearance: none; width: 100%; height: 28px; margin: 0; padding: 0; background: transparent; cursor: pointer;
+}
+.vol__range:disabled { cursor: default; opacity: 0.5; }
+.vol__range::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(to right, var(--fill) calc(9px + (100% - 18px) * var(--frac)), var(--track) calc(9px + (100% - 18px) * var(--frac)));
+}
+.vol__range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin-top: -6px; border: 0; border-radius: 50%;
+  background: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / 0.5); transition: transform 0.15s;
+}
+.vol__range:hover::-webkit-slider-thumb, .vol__range:active::-webkit-slider-thumb { transform: scale(1.18); }
+.vol__range::-moz-range-track { height: 6px; border-radius: 999px; background: var(--track); }
+.vol__range::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--fill); }
+.vol__range::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / 0.5); }
+.vol__range:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 6px; }
+/* Segno fisso sul 100%: (100-10)/(200-10) = 47,4% della corsa, corretto per la larghezza del pallino. */
+.vol__mark {
+  position: absolute; top: 50%; left: calc(9px + (100% - 18px) * 0.4737); width: 2px; height: 16px; margin: -8px 0 0 -1px;
+  border-radius: 1px; background: rgb(255 255 255 / 0.4); pointer-events: none;
+}
+.vol__pct { font-size: var(--fs-body); font-weight: 600; text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.vol__pct--up, .vol .vol__pct { color: var(--accent); }
+.vol__scale { grid-column: 2; position: relative; height: 18px; font-size: var(--fs-small); color: var(--text-2); }
+.vol--noico .vol__scale { grid-column: 1; }
+.vol__scale em { position: absolute; top: 0; font-style: normal; white-space: nowrap; }
+.vol__scale em:nth-child(1) { left: 0; }
+.vol__scale em:nth-child(2) { left: 47.4%; transform: translateX(-50%); }
+.vol__scale em:nth-child(3) { right: 0; }
+
+/* Dentro il menu del suono. */
+.sb__vol { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding: 12px 12px 10px; border-top: 1px solid rgb(255 255 255 / 0.07); }
+.sb__vol-acts { display: flex; }
+.sb__acts { flex-wrap: wrap; align-items: center; }
+.sb__prova { gap: 8px; color: var(--accent); background: rgb(30 215 96 / 0.1); box-shadow: inset 0 0 0 1px rgb(30 215 96 / 0.5); }
+.sb__prova:hover:not(:disabled) { background: rgb(30 215 96 / 0.18); }
+
+@media (prefers-reduced-motion: reduce) {
+  .vol__range::-webkit-slider-thumb { transition: none; }
+}
+.sb__acts > .btn { flex: none; }
+.sb__foot--form { position: static; }

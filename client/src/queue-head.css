@@ -1,0 +1,41 @@
+/* Testata del pannello Coda (App.jsx → Panels.jsx → .pnl__bar).
+   Ordine a video, da sinistra: maniglia · «Coda» · «190 brani · ⏱ 11:05:28» · ricerca corta (al centro dello
+   spazio libero) · Shuffle · Ripeti · Svuota. Nel DOM i pulsanti vengono prima del conteggio: l'ordine lo
+   fa `order`, così la tastiera passa dalla ricerca ai pulsanti. Sta in un file a parte e vince su styles.css
+   per specificità. Il telefono (layout-m) non usa questa barra. */
+.pnl__bar > .pnl__grip, .pnl__bar > .pnl__title { flex: none; }
+.pnl__bar > .ipill.qtools__count { order: 1; display: inline-flex; margin-left: 0; }
+.pnl__bar > .pnl__search { order: 2; }
+.pnl__bar > .cpill, .pnl__bar > .cclear { order: 3; }
+
+/* Campo corto: 200 px, tra 140 e 220; ai lati lo spazio libero si divide in parti uguali. */
+.pnl__bar > .pnl__search {
+  flex: 0 1 200px; min-width: 140px; max-width: 220px; margin-inline: auto; cursor: auto;
+}
+
+/* Ricerca aperta: il campo riempie lo spazio e si legge cosa si scrive; a destra resta «Chiudi». */
+.pnl__bar:has(> .cpill--close) > .pnl__search {
+  flex: 1 1 0; min-width: 0; max-width: none; margin-inline: 0;
+}
+
+/* Pannello più stretto: prima i pulsanti restano con la sola icona (non «Chiudi»), poi sparisce il conteggio,
+   infine il campo diventa una lente. */
+@container pnl (max-width: 679px) {
+  .pnl__bar .cpill:not(.cpill--close) .cpill__text { display: none; }
+  .pnl__bar .cpill:not(.cpill--close) { width: 30px; padding: 0; justify-content: center; }
+}
+@container pnl (max-width: 519px) {
+  .pnl__bar > .ipill.qtools__count { display: none; }
+}
+/* Sotto 340 px il campo non ha più 140 px: resta la lente. Il clic cade sull'input, trasparente e
+   disteso su tutta la lente, quindi apre comunque la ricerca a tutto pannello. */
+@container pnl (max-width: 339px) {
+  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search {
+    flex: none; width: 34px; min-width: 34px; max-width: 34px; margin-inline: auto 0; position: relative;
+  }
+  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search .search { width: 34px; overflow: hidden; }
+  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search .search input {
+    position: absolute; inset: 0; width: 100%; padding: 0; opacity: 0; cursor: pointer;
+  }
+  .pnl__bar:not(:has(> .cpill--close)) > .pnl__search .search__clear { display: none; }
+}

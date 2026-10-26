@@ -1,0 +1,63 @@
+/*
+ * Token di FranzDSMusic: colori, misure e font in un solo posto (vedi DESIGN.md del redesign).
+ * Stile «minimalismo piatto»: nero e grigi neutri, un velo del colore della copertina (--tint) nei fondi,
+ * colore solo con significato: verde = suona/attivo, giallo = avviso, rosso = distruttivo.
+ */
+@property --tint { syntax: '<color>'; inherits: true; initial-value: #3a3a3a; }
+
+:root {
+  /* fondi: quasi nero, grigi neutri + un velo appena percettibile della copertina */
+  --tint: #3a3a3a;
+  --bg: color-mix(in srgb, var(--tint) 5%, #0f0f0f);
+  --card: color-mix(in srgb, var(--tint) 3%, #191919);
+  --card-2: color-mix(in srgb, var(--tint) 3%, #242424); /* menu, avvisi in sovrimpressione */
+  --hover: rgb(255 255 255 / 0.06);
+  --hover-strong: rgb(255 255 255 / 0.1);
+  --border: rgb(255 255 255 / 0.07);
+  --border-strong: rgb(255 255 255 / 0.12);
+
+  /* testo */
+  --text: #f2f2f2;
+  --text-2: #a8a8a8;
+  --text-3: #d4d4d4;
+  --text-faint: rgb(242 242 242 / 0.35);
+
+  /* significati */
+  --accent: #1ed760;
+  --accent-hover: #3be477;
+  --on-accent: #121212;
+  --warn-bg: #633806;
+  --warn-text: #fbe3bf;
+  --warn-icon: #ef9f27;
+  --danger: #f09595;
+  --danger-border: rgb(240 149 149 / 0.3);
+  --info: #85b7eb; /* modalità prova */
+
+  --track: rgb(255 255 255 / 0.16);
+  --avatar: #333333;
+  --cover-empty: #262626;
+
+  /* misure */
+  --gap: 12px;
+  --pad-card: 16px;
+  --radius: 8px;
+  --radius-card: 12px;
+  --row: 44px;
+  --btn: 40px;
+  --btn-sm: 32px;
+  --play: 52px;
+  --side: clamp(240px, 19vw, 300px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* font */
+  --font: 'Figtree', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --fs-title: 22px;
+  --fs-h: 18px;
+  --fs-body: 14px;
+  --fs-small: 13px;
+  --ease: cubic-bezier(0.3, 0, 0, 1);
+
+  color-scheme: dark;
+}
+/* Dentro Discord la fila dei partecipanti sporge solo di pochi px sul fondo: basta un margine piccolo. */
+:root.in-discord { --safe-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }

@@ -1,0 +1,19 @@
+{
+  "name": "discord-music",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["server", "client"],
+  "scripts": {
+    "build": "npm run build -w client",
+    "start": "node server/src/index.js",
+    "prova": "node server/src/index.js --prova",
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "tunnel": "node scripts/tunnel.mjs",
+    "test": "npm test -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  },
+  "engines": { "node": ">=22" }
+}

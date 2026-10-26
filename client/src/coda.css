@@ -1,0 +1,58 @@
+/* Righe della coda su DUE LINEE (Queue.jsx: Row e NowRow, classe .qrow2).
+   Linea 1: titolo (15 px, tutta la larghezza). Linea 2: «Autore · richiesto da Nome» (13 px, grigio).
+   Copertina 44 px sulle due linee, durata a destra. Maniglia, azioni al passaggio del mouse e trascinamento
+   della riga intera sono quelli di styles.css (qrow__grip, qrow__acts, qrow__btn): qui cambia solo la griglia.
+   I selettori hanno una classe in più di quelli di styles.css (anche delle @container pnl) per vincere sempre. */
+
+.tracks--coda { --row: 56px; }
+
+.tracks--coda .qrow.qrow2,
+.tracks--coda .qblock .qrow.qrow2 {
+  grid-template-columns: 16px 26px 44px minmax(0, 1fr) 44px;
+  column-gap: 8px;
+  height: var(--row);
+}
+
+/* Copertina più grande, anche per il brano in corso (con velo ed equalizzatore). */
+.tracks--coda .qrow2 .cover--sm { width: 44px; height: 44px; border-radius: 8px; }
+.tracks--coda .qrow2 .qnow__art { width: 44px; height: 44px; }
+.tracks--coda .qrow2 .qnow__veil { border-radius: 8px; }
+
+/* Testo: titolo sopra, autore e richiedente sotto. */
+.tracks--coda .qrow2__text {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  min-width: 0; text-align: left;
+}
+.tracks--coda .qrow2__title,
+.tracks--coda .qrow2__meta {
+  display: block; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tracks--coda .qrow2__title { font-size: 15px; line-height: 20px; font-weight: 500; color: var(--text); }
+.tracks--coda .qrow2__meta { font-size: var(--fs-small); line-height: 18px; color: var(--text-2); }
+.tracks--coda .qrow.qnow .qrow2__title { color: var(--accent); font-weight: 600; }
+
+.tracks--coda .qrow2 .qrow__time { font-size: var(--fs-small); text-align: right; }
+
+/* Colonna stretta (< 380 px): numero e durata restano, la riga si stringe. */
+@container pnl (max-width: 380px) {
+  .tracks--coda .qrow.qrow2,
+  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 16px 24px 44px minmax(0, 1fr) 40px; column-gap: 6px; }
+}
+/* Stretta (< 340 px): via anche il numero, al titolo servono i 30 px. */
+@container pnl (max-width: 340px) {
+  .tracks--coda .qrow.qrow2,
+  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 16px 44px minmax(0, 1fr) 40px; }
+  .tracks--coda .qrow2 > .qrow__num { display: none; }
+}
+/* Molto stretta (< 260 px): via numero e durata, il titolo prende tutto lo spazio. */
+@container pnl (max-width: 260px) {
+  .tracks--coda .qrow.qrow2,
+  .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 16px 44px minmax(0, 1fr); column-gap: 6px; }
+  .tracks--coda .qrow2 > .qrow__num,
+  .tracks--coda .qrow2 > .qrow__time { display: none; }
+}
+/* Telefono e finestre piccole: stesse colonne (styles.css le restringe senza la classe in più). */
+@media (max-width: 900px) {
+  .tracks--coda .qrow.qrow2 { grid-template-columns: 16px 24px 44px minmax(0, 1fr) 44px; }
+}

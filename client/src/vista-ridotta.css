@@ -1,0 +1,149 @@
+/* Vista ridotta (finestrella PIP di Discord, circa 320x180). Le misure sono in cqh/cqw del riquadro:
+   a 320x180 la copertina è 108 px; più grande la finestra, più grande tutto. Testo mai sotto 13 px. */
+.vr {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  background: #181818;
+  color: #fff;
+  font-family: var(--font);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* sfondo: la copertina a tutto riquadro, ingrandita, sfocata e scurita */
+.vr__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(22px) brightness(0.5) saturate(1.1);
+  transform: scale(1.18);
+}
+
+/* sfocatura progressiva, senza bordo: parte da sinistra (dietro la copertina) e dal basso */
+.vr__blur {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  mask-image: linear-gradient(to right, #000 0%, #000 30%, transparent 72%), linear-gradient(to top, #000 0%, #000 14%, transparent 50%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 30%, transparent 72%), linear-gradient(to top, #000 0%, #000 14%, transparent 50%);
+  mask-composite: add;
+  -webkit-mask-composite: source-over;
+}
+.vr__shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, rgb(0 0 0 / 0.62) 0%, rgb(0 0 0 / 0.4) 35%, rgb(0 0 0 / 0.22) 70%, rgb(0 0 0 / 0.18) 100%),
+    linear-gradient(to top, rgb(0 0 0 / 0.6) 0%, rgb(0 0 0 / 0.25) 28%, rgb(0 0 0 / 0) 55%);
+}
+
+/* copertina quadrata a sinistra, centrata in verticale */
+.vr__art {
+  position: absolute;
+  left: 7.5cqh;
+  top: calc(50% - 2px);
+  transform: translateY(-50%);
+  width: 60cqh;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #282828;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.4);
+  display: grid;
+  place-items: center;
+}
+.vr__art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vr__note { width: 42%; height: 42%; color: #8a8a8a; }
+.vr--empty .vr__art { box-shadow: none; }
+
+/* colonna di destra: titolo (2 righe riservate), autore, stato */
+.vr__info {
+  position: absolute;
+  left: calc(7.5cqh + 60cqh + 6cqh);
+  right: 7.5cqh;
+  top: calc(50% - 2px);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2px, 1.4cqh, 6px);
+  min-width: 0;
+}
+.vr__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: clamp(16px, 10.5cqh, 26px);
+  font-weight: 600;
+  line-height: 1.2;
+  min-height: 2.4em;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
+}
+.vr__author {
+  min-height: 1.4em;
+  font-size: clamp(13px, 7.5cqh, 17px);
+  line-height: 1.4;
+  color: #b8b8b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vr__meta {
+  display: flex;
+  align-items: center;
+  margin-top: clamp(1px, 1.4cqh, 5px);
+  min-width: 0;
+}
+.vr__pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 10px 1px 8px;
+  border-radius: 999px;
+  font-size: clamp(13px, 8cqh, 18px);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.vr__pill svg { width: 0.85em; height: 0.85em; flex: none; }
+.vr__pill--play { color: #1ed760; background: rgb(30 215 96 / 0.16); }
+.vr__pill--pausa { color: #e0e0e0; background: rgb(255 255 255 / 0.14); }
+
+/* tempi in basso a destra, sopra la barra */
+.vr__time {
+  position: absolute;
+  right: 7.5cqh;
+  bottom: calc(4px + 3cqh);
+  text-align: right;
+  font-size: clamp(13px, 8cqh, 18px);
+  line-height: 1.2;
+  color: #d0d0d0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* barra del tempo sul bordo inferiore */
+.vr__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgb(255 255 255 / 0.18);
+}
+.vr__bar span { display: block; height: 100%; transition: width 0.25s linear; }
+.vr__bar--play span { background: #1ed760; }
+.vr__bar--pausa span { background: #b3b3b3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vr__bar span { transition: none; }
+}

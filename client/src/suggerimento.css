@@ -1,0 +1,37 @@
+/* Fumetto dei suggerimenti (Suggerimento.jsx), variante A con freccia. Misure della tavola «Suggerimenti»:
+   fondo #303030, bordo bianco 16%, testo #f2f2f2 13 px, angoli 8 px, margini 8×10 px, 8 px dal pulsante,
+   riquadro tasto bianco 12%. Posizione con transform (calcolata in JS); compare in 120 ms di dissolvenza. */
+.sugg {
+  position: fixed; left: 0; top: 0; z-index: 10000;
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 8px 10px; border-radius: 8px;
+  background: #303030; border: 1px solid rgb(255 255 255 / 0.16);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.55);
+  color: #f2f2f2; font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1.2;
+  white-space: nowrap; pointer-events: none;
+  opacity: 0; visibility: hidden;
+  transition: opacity 120ms ease, visibility 0s linear 120ms;
+}
+.sugg > span { overflow: hidden; text-overflow: ellipsis; }
+.sugg.is-on { opacity: 1; visibility: visible; transition: opacity 120ms ease, visibility 0s; }
+.sugg__kbd {
+  display: inline-block; padding: 1px 6px; border-radius: 5px;
+  background: rgb(255 255 255 / 0.12); color: #f2f2f2;
+  font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.2;
+}
+.sugg__kbd[hidden] { display: none; }
+
+/* Freccia: quadrato ruotato di 45°, con il bordo solo sui due lati esterni. left/top li mette il JS. */
+.sugg__arrow {
+  position: absolute; width: 9px; height: 9px; background: #303030;
+  border: 0 solid rgb(255 255 255 / 0.16); transform: rotate(45deg);
+}
+.sugg[data-lato='up'] .sugg__arrow { bottom: -5px; margin-left: -5px; border-right-width: 1px; border-bottom-width: 1px; }
+.sugg[data-lato='dn'] .sugg__arrow { top: -5px; margin-left: -5px; border-left-width: 1px; border-top-width: 1px; }
+.sugg[data-lato='rt'] .sugg__arrow { left: -5px; margin-top: -5px; border-left-width: 1px; border-bottom-width: 1px; }
+.sugg[data-lato='lt'] .sugg__arrow { right: -5px; margin-top: -5px; border-right-width: 1px; border-top-width: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sugg, .sugg.is-on { transition: none; }
+}
