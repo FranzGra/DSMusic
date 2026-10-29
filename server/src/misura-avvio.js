@@ -2,7 +2,7 @@
 //   docker compose exec bot node server/src/misura-avvio.js [link] [secondi-di-partenza] [opzioni]
 // Opzioni:
 //   --riproduci=60  simula la riproduzione per 60 s (un pacchetto Opus ogni 20 ms, come il player)
-//   --volume=60     volume della simulazione (100 = copia senza ricodifica se la sorgente è Opus)
+//   --volume=60     volume della simulazione (cursore 0-100; il volume lo applica node codificando in Opus)
 //   --da=cache|rete sorgente della simulazione (predefinito: cache)
 // Stampa: tempo di risoluzione, primo audio da rete / da RAM / ripiego, e per la simulazione la CPU di
 // node per pacchetto e la memoria.
@@ -59,7 +59,7 @@ if (opz.riproduci) {
   const sorgente = opz.da === 'rete' || !locale ? info : locale;
   const a = createOpusStreamAt(sorgente, 0, { volume, fonte: sorgente === locale ? 'cache' : 'rete' });
   await a.ready(15_000);
-  const r = createAudioResource(a.stream, { inputType: StreamType.OggOpus });
+  const r = createAudioResource(a.stream, { inputType: a.tipo ?? StreamType.Opus });
   const cpu0 = process.cpuUsage();
   let n = 0;
   let prossimo = performance.now();

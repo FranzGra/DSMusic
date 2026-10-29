@@ -753,7 +753,7 @@ test('suono: «ferma il suono» dall\'interfaccia fa riprendere la musica', asyn
   assert.equal(g.suoni.interrompi(), false);
 });
 
-test('suono: checkStall e cambio di volume fermi durante il suono', async () => {
+test('suono: checkStall fermo durante il suono, il volume si applica subito senza riaprire', async () => {
   const ctx = setup();
   const { g, file, suono } = ctx;
   await conMusica(ctx);
@@ -762,14 +762,16 @@ test('suono: checkStall e cambio di volume fermi durante il suono', async () => 
   g.audio.idleMs = () => 10 * 60_000;
   g.checkStall();
   assert.equal(fallito.mock.callCount(), 0);
-  const prog = mock.method(g, 'applicaVolume');
+  const volumi = [];
+  g.audio.impostaVolume = (v) => volumi.push(v);
+  const aperture = [];
+  const apri = g.openAudio;
+  g.openAudio = (...x) => { aperture.push(x); return apri.apply(g, x); };
   g.setVolume(10);
-  assert.equal(g.volTimer, null, 'volume non programmato durante il suono');
+  assert.deepEqual(volumi, [10], 'il volume della musica (in pausa per il suono) cambia subito');
   g.audio.idleMs = () => 0;
   ctx.suoni().stop();
-  assert.ok(g.volTimer, 'alla fine il volume si riapplica');
-  clearTimeout(g.volTimer);
-  assert.equal(prog.mock.callCount(), 0);
+  assert.equal(aperture.length, 0, "alla fine del suono non si riapre l'audio per il volume");
 });
 
 test('suono: file sparito = errore chiaro, la musica non si ferma', async () => {

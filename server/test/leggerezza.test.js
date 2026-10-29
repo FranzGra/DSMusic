@@ -3,7 +3,9 @@
 // Niente Discord, yt-dlp né ffmpeg. Avvio: npm test
 import { test, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { argomentiUscita, fattoreVolume, sceltaUscita } from '../src/audio.js';
+import { PassThrough } from 'node:stream';
+import OpusScript from 'opusscript';
+import { argomentiUscita, CodificatoreOpus, fattoreVolume } from '../src/audio.js';
 import { AudioCache } from '../src/audiocache.js';
 import { creaLimitatore } from '../src/resolver.js';
 import { GuildMusic, MusicManager } from '../src/music.js';
@@ -29,19 +31,8 @@ function fetchFinto(bytes, { log = [] } = {}) {
 }
 
 // ---------- via audio ----------
-test('via audio: copia senza ricodifica solo con sorgente Opus e volume reale 100%', () => {
-  // base 1 = nessuna riduzione (come prima di VOLUME_BASE)
-  assert.equal(sceltaUscita({ acodec: 'opus', volume: 100, base: 1 }), 'copia');
-  assert.equal(sceltaUscita({ acodec: 'opus', volume: 60, base: 1 }), 'opus');
-  assert.equal(sceltaUscita({ acodec: 'mp4a.40.2', volume: 100, base: 1 }), 'opus');
-  assert.equal(sceltaUscita({ acodec: null, volume: 100, base: 1 }), 'opus');
-  assert.deepEqual(argomentiUscita('copia'), ['-vn', '-c:a', 'copy', '-copypriorss', '0', '-f', 'ogg', 'pipe:1']);
-  const a60 = argomentiUscita('opus', 60, 1);
-  assert.ok(a60.includes('libopus'));
-  assert.equal(a60[a60.indexOf('-af') + 1], 'volume=0.6');
-  assert.equal(a60[a60.indexOf('-b:a') + 1], '128k');
-  assert.equal(a60.at(-2), 'ogg');
-  assert.equal(argomentiUscita('opus', 100, 1).includes('-af'), false, 'a 100% niente filtro volume');
+test('via audio: ffmpeg solo decodifica in PCM 48 kHz stereo (volume e Opus in node)', () => {
+  assert.deepEqual(argomentiUscita(), ['-vn', '-ar', '48000', '-ac', '2', '-f', 's16le', 'pipe:1']);
 });
 
 test("via audio: il volume di base abbassa l'uscita reale, il cursore resta 0-100", () => {
@@ -49,12 +40,70 @@ test("via audio: il volume di base abbassa l'uscita reale, il cursore resta 0-10
   assert.equal(fattoreVolume(60, 0.5), 0.3);
   assert.equal(fattoreVolume(0, 0.5), 0);
   assert.equal(fattoreVolume(150, 0.5), 0.5, 'oltre 100 si ferma a 100');
-  // con base 0,5 anche il 100% del cursore ricodifica con il filtro (niente copia)
-  assert.equal(sceltaUscita({ acodec: 'opus', volume: 100, base: 0.5 }), 'opus');
-  const a100 = argomentiUscita('opus', 100, 0.5);
-  assert.equal(a100[a100.indexOf('-af') + 1], 'volume=0.5');
-  const a33 = argomentiUscita('opus', 33, 0.5);
-  assert.equal(a33[a33.indexOf('-af') + 1], 'volume=0.165');
+  assert.equal(fattoreVolume(33, 0.5), 0.165);
+  assert.equal(fattoreVolume(100, 1), 1);
+});
+
+/** PCM s16le stereo: seno a 440 Hz di ampiezza 16000 per n pacchetti da 20 ms. */
+function seno(pacchetti) {
+  const b = Buffer.alloc(pacchetti * 3840);
+  for (let i = 0; i < pacchetti * 960; i++) {
+    const v = Math.round(16000 * Math.sin((2 * Math.PI * 440 * i) / 48000));
+    b.writeInt16LE(v, i * 4);
+    b.writeInt16LE(v, i * 4 + 2);
+  }
+  return b;
+}
+
+/** Livello (RMS) di un pacchetto Opus decodificato. */
+function livello(dec, pacchetto) {
+  const pcm = dec.decode(pacchetto);
+  let q = 0;
+  for (let i = 0; i < pcm.length; i += 2) q += pcm.readInt16LE(i) ** 2;
+  return Math.sqrt(q / (pcm.length / 2));
+}
+
+test('codificatore: il volume si applica al pacchetto dopo (ritardo misurato ≤ 3 pacchetti = 60 ms), senza riaprire niente', async () => {
+  const sorgente = new PassThrough();
+  const cod = new CodificatoreOpus({ guadagno: 0.5 });
+  sorgente.pipe(cod);
+  sorgente.end(seno(150)); // 3 s di audio, molto più di quello che il player chiede
+  const dec = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
+  const leggi = async () => {
+    for (;;) {
+      const p = cod.read();
+      if (p) return p;
+      await new Promise((r) => setImmediate(r));
+    }
+  };
+  const livelli = [];
+  for (let i = 0; i < 30; i++) livelli.push(livello(dec, await leggi())); // 0,6 s «suonati»
+  const prima = livelli.slice(10).reduce((a, b) => a + b, 0) / 20;
+  // Contropressione: davanti al player restano pochi pacchetti già codificati
+  assert.ok(cod.readableLength <= 2, `pacchetti pronti in anticipo: ${cod.readableLength}`);
+  cod.impostaGuadagno(0.1); // cursore abbassato
+  const dopo = [];
+  for (let i = 0; i < 10; i++) dopo.push(livello(dec, await leggi()));
+  const ritardo = dopo.findIndex((l) => l < prima * 0.3); // primo pacchetto già abbassato
+  assert.ok(ritardo >= 0 && ritardo <= 3, `ritardo del volume: ${ritardo} pacchetti (livelli ${dopo.map(Math.round).join(', ')}, prima ${Math.round(prima)})`);
+  const finale = dopo.slice(5).reduce((a, b) => a + b, 0) / 5;
+  assert.ok(Math.abs(finale / prima - 0.2) < 0.05, `rapporto 0,1/0,5 = 0,2: ${(finale / prima).toFixed(3)}`);
+  assert.ok(Math.abs(prima / (16000 * Math.SQRT1_2) - 0.5) < 0.06, `livello con guadagno 0,5: ${(prima / 11314).toFixed(3)}`);
+  dec.delete();
+  cod.destroy();
+});
+
+test('codificatore: guadagno 0 = silenzio, pezzo finale completato con silenzio', async () => {
+  const cod = new CodificatoreOpus({ guadagno: 0 });
+  const pacchetti = [];
+  cod.on('data', (p) => pacchetti.push(p));
+  const fine = new Promise((r) => cod.on('end', r));
+  cod.end(seno(2).subarray(0, 3840 + 1000)); // 1 pacchetto e un pezzo
+  await fine;
+  assert.equal(pacchetti.length, 2);
+  const dec = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
+  assert.ok(livello(dec, pacchetti[0]) < 50);
+  dec.delete();
 });
 
 // ---------- limite yt-dlp ----------
@@ -343,39 +392,32 @@ function inRiproduzione() {
   g.player = { play: (r) => suonati.push(r), pause() {}, unpause() {}, stop() {} };
   g.current = brano('aaaaaaaaaaa');
   g.startedAt = Date.now() - 50_000; // a 50 s
-  g.audio = { volume: 60, kill() { g.vecchioUcciso = true; }, touch() {}, idleMs: () => 0, bytes: () => 1 };
-  return { g, suonati };
+  const volumi = [];
+  g.audio = { volume: 60, impostaVolume: (v) => volumi.push(v), kill() { g.vecchioUcciso = true; }, touch() {}, idleMs: () => 0, bytes: () => 1 };
+  return { g, suonati, volumi };
 }
 
-test('volume: un solo riavvio dopo che il cursore si ferma, nuovo audio un po\' avanti e scambio senza silenzio', async () => {
-  const { g, suonati } = inRiproduzione();
-  const log = [];
-  g.latenza.rete = 0; // anticipo minimo: 0,05 s
-  g.openAudio = async (t, at, o) => { log.push({ at, o, volume: g.volume }); return { stream: new (await import('node:stream')).PassThrough(), volume: g.volume, kill() {}, touch() {}, idleMs: () => 0, bytes: () => 1 }; };
+test('volume: si applica subito allo stesso audio, senza riaprire ffmpeg né cambiare risorsa', () => {
+  const { g, suonati, volumi } = inRiproduzione();
+  let aperture = 0;
+  g.openAudio = async () => { aperture++; throw new Error('non deve servire'); };
   g.setVolume(70);
   g.setVolume(80);
-  g.setVolume(90);
-  assert.equal(log.length, 0, 'mentre il cursore si muove non riapre niente');
-  await new Promise((r) => setTimeout(r, 400));
-  assert.equal(log.length, 1, 'una sola riapertura');
-  assert.equal(log[0].volume, 90);
-  assert.deepEqual(log[0].o, { soloVeloce: true });
-  assert.ok(log[0].at > 50 && log[0].at < 51, `parte dal punto attuale (+anticipo): ${log[0].at}`);
-  assert.equal(suonati.length, 1, 'risorsa nuova al player');
-  assert.equal(g.vecchioUcciso, true, 'il vecchio ffmpeg è chiuso dopo lo scambio');
-  assert.ok(Math.abs(g.position() - 50.4) < 0.3, `la posizione non salta: ${g.position()}`);
+  g.setVolume(30);
+  assert.deepEqual(volumi, [70, 80, 30], 'ogni movimento del cursore arriva subito al codificatore');
+  assert.equal(aperture, 0);
+  assert.equal(suonati.length, 0, 'nessuna risorsa nuova');
+  assert.equal(g.vecchioUcciso, undefined, "l'audio in corso resta lo stesso");
+  assert.ok(Math.abs(g.position() - 50) < 0.2, 'la posizione non salta');
   g.killAudio();
 });
 
-test('volume in pausa: niente riavvio subito, si applica alla ripresa', async () => {
-  const { g } = inRiproduzione();
+test('volume in pausa: si applica subito (nessun riavvio alla ripresa)', () => {
+  const { g, volumi } = inRiproduzione();
   g.pause();
-  let aperture = 0;
-  g.openAudio = async () => { aperture++; throw new Error('non deve servire'); };
   g.setVolume(30);
-  await new Promise((r) => setTimeout(r, 350));
-  assert.equal(aperture, 0);
-  assert.equal(g.pendingSeek, true, 'alla ripresa riparte dal punto della pausa con il volume nuovo');
+  assert.deepEqual(volumi, [30]);
+  assert.equal(g.pendingSeek, false);
   g.killAudio();
 });
 

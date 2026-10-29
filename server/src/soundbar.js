@@ -1,9 +1,8 @@
 // Soundbar: il secondo AudioPlayer di ogni server (playerSuoni), separato da quello della musica.
 // Niente mixing: quando parte un suono la musica va in pausa esplicita, la connessione si iscrive
 // al player dei suoni e, alla fine, torna alla musica che riprende dal punto esatto.
-// Hook sottili in music.js (position, startReal, checkStall, programmaVolume, pause, resume, stop…).
+// Hook sottili in music.js (position, startReal, checkStall, applicaVolume, pause, resume, stop…).
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
 import {
   AudioPlayerStatus,
   NoSubscriberBehavior,
@@ -12,6 +11,7 @@ import {
   createAudioResource,
 } from '@discordjs/voice';
 import { SoundError } from './suoni.js';
+import { createFileStream } from './audio.js';
 import { config } from './config.js';
 
 const MARGINE_FINE_MS = 3000; // se il player non dice «finito» entro durata + 3 s, si chiude comunque
@@ -32,34 +32,28 @@ export class SoundPlayer {
       player: () => createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } }),
       risorsa: (file) => this.risorsaFile(file),
     };
-    this.ffmpeg = null; // ffmpeg del suono in corso (solo con VOLUME_BASE diverso da 1)
+    this.flusso = null; // ffmpeg + codificatore del suono in corso (solo con VOLUME_BASE diverso da 1)
   }
 
   /**
    * Risorsa del suono. Con VOLUME_BASE 1 il file Ogg/Opus va così com'è (niente ffmpeg); altrimenti
-   * ffmpeg applica il volume di base come alla musica (un suono dura al massimo ~20 s: costo minimo).
+   * passa dalla stessa via della musica (ffmpeg decodifica, node applica il volume di base e codifica
+   * in Opus): un suono dura al massimo ~20 s, costo minimo. Il cursore del volume non conta per i suoni.
    */
   risorsaFile(file) {
     const base = config.volumeBase;
     if (base === 1) return createAudioResource(fs.createReadStream(file), { inputType: StreamType.OggOpus });
     this.chiudiFfmpeg();
-    const ffmpeg = spawn(config.ffmpeg, [
-      '-hide_banner', '-nostdin', '-loglevel', 'error', '-i', file,
-      '-vn', '-af', `volume=${base}`, '-ar', '48000', '-ac', '2',
-      '-c:a', 'libopus', '-b:a', '96k', '-frame_duration', '20', '-f', 'ogg', 'pipe:1',
-    ], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
-    ffmpeg.on('error', (e) => console.error(`[suoni ${this.g.guildId}] ffmpeg non avviabile:`, e.message));
-    ffmpeg.stdout.on('error', () => {});
-    ffmpeg.once('close', () => { if (this.ffmpeg === ffmpeg) this.ffmpeg = null; });
-    this.ffmpeg = ffmpeg;
-    return createAudioResource(ffmpeg.stdout, { inputType: StreamType.OggOpus });
+    const flusso = createFileStream(file, { guadagno: base });
+    this.flusso = flusso;
+    return createAudioResource(flusso.stream, { inputType: flusso.tipo });
   }
 
   /** Chiude l'ffmpeg del suono precedente (interrotto o finito), se c'è ancora. */
   chiudiFfmpeg() {
-    const p = this.ffmpeg;
-    this.ffmpeg = null;
-    if (p && p.exitCode === null && p.signalCode === null) p.kill('SIGKILL');
+    const f = this.flusso;
+    this.flusso = null;
+    f?.kill();
   }
 
   /** Per lo stato verso i client. */
@@ -169,7 +163,6 @@ export class SoundPlayer {
       g.player?.unpause();
       g.scheduleSim();
     }
-    g.programmaVolume(); // il volume cambiato durante il suono si applica adesso
     g.changed();
   }
 

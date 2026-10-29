@@ -1,4 +1,4 @@
-// Cambio di volume e spostamento con la copia Opus (volume 100%, sorgente WebM/Opus): l'audio deve
+// Spostamento nel brano (sorgente WebM/Opus servita in HTTP come la copia in RAM): l'audio deve
 // partire esattamente dal secondo chiesto, non dal punto di indice (Cues) precedente.
 // Usa il vero ffmpeg su un file generato al momento; se ffmpeg non c'è, il test si salta.
 import { test } from 'node:test';
@@ -13,24 +13,7 @@ import { createOpusStreamAt } from '../src/audio.js';
 
 const haFfmpeg = spawnSync(config.ffmpeg, ['-version'], { windowsHide: true }).status === 0;
 
-/** Conta i pacchetti audio di un flusso Ogg (senza i 2 di intestazione Opus). */
-function pacchettiOgg(buf) {
-  let o = 0;
-  let n = 0;
-  while (o + 27 <= buf.length) {
-    const segmenti = buf[o + 26];
-    let size = 0;
-    for (let i = 0; i < segmenti; i++) {
-      const l = buf[o + 27 + i];
-      size += l;
-      if (l < 255) n++;
-    }
-    o += 27 + segmenti + size;
-  }
-  return n - 2;
-}
-
-test('copia Opus da metà brano: parte dal secondo chiesto (niente salto indietro al punto di indice)', { skip: !haFfmpeg && 'ffmpeg non installato' }, async () => {
+test('da metà brano: parte dal secondo chiesto (niente salto indietro al punto di indice), pacchetti Opus da node', { skip: !haFfmpeg && 'ffmpeg non installato' }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seek-'));
   const file = path.join(dir, 'src.webm');
   let after = async () => {};
@@ -53,11 +36,15 @@ test('copia Opus da metà brano: parte dal secondo chiesto (niente salto indietr
     after = () => new Promise((ok) => server.close(ok));
     const da = 33.7;
     const url = `http://127.0.0.1:${server.address().port}/c/x`;
-    const audio = createOpusStreamAt({ url, acodec: 'opus' }, da, { volume: 100, fonte: 'cache', base: 1 }); // base 1: copia possibile
-    assert.equal(audio.modo, 'copia');
-    const parti = [];
-    for await (const c of audio.stream) parti.push(c);
-    const secondi = pacchettiOgg(Buffer.concat(parti)) * 0.02; // pacchetti da 20 ms
+    const audio = createOpusStreamAt({ url, acodec: 'opus' }, da, { volume: 60, fonte: 'cache', base: 0.5 });
+    assert.equal(audio.modo, 'pcm');
+    assert.equal(audio.tipo, 'opus');
+    let n = 0;
+    for await (const p of audio.stream) {
+      assert.ok(Buffer.isBuffer(p) && p.length > 0 && p.length < 1500, 'un pacchetto Opus');
+      n++;
+    }
+    const secondi = n * 0.02; // pacchetti da 20 ms
     // Prima della correzione: ~30 s (riparte dal punto di indice a 30 s, 3,7 s prima)
     assert.ok(Math.abs(secondi - (60 - da)) < 0.1, `audio da ${(60 - secondi).toFixed(2)} s invece che da ${da} s`);
   } finally {

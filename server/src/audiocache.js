@@ -109,6 +109,22 @@ export class AudioCache {
     return true;
   }
 
+  /**
+   * Brano che serve ADESSO (ffmpeg ha ricevuto 403 sul link): il download passa davanti agli altri
+   * e si aspetta al massimo attesaMs. Restituisce la sorgente locale (come sorgente()) oppure null.
+   */
+  async subito(key, info, opzioni = {}, attesaMs = 8000) {
+    if (!this.voci.has(key)) {
+      if (!this.scarica(key, info, opzioni)) return null;
+      const i = this.coda.findIndex((j) => j.key === key);
+      if (i > 0) this.coda.unshift(...this.coda.splice(i, 1));
+      const fine = Date.now() + attesaMs;
+      const inAttesa = () => this.inCorso?.key === key || this.coda.some((j) => j.key === key);
+      while (!this.voci.has(key) && inAttesa() && Date.now() < fine) await new Promise((r) => setTimeout(r, 25));
+    }
+    return this.voci.has(key) ? this.sorgente(key) : null;
+  }
+
   /** Attende la fine dei download in coda (per i test e le misure). */
   async attesa() {
     while (this.lavoro) await this.lavoro;

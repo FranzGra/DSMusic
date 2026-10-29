@@ -136,3 +136,51 @@ test('prefetch: mentre suona prepara lo stream del prossimo (una sola volta)', a
   await g.prefetch();
   assert.equal(chiamate, 1, 'già in cache');
 });
+
+test('audio: 403 da ffmpeg ma link diretto → download in RAM a blocchi e partenza da lì, prima del ripiego', async () => {
+  const log = [];
+  const scaricati = [];
+  const cache = {
+    attiva: true,
+    sorgente: async () => null, // non ancora in RAM
+    subito: async (key, info) => { scaricati.push([key, info.url]); return { url: 'http://127.0.0.1:1/c/t', headers: {}, direct: true }; },
+    togli() {},
+    proteggi() {},
+  };
+  const g = new GuildMusic('g', { ...opzioni(), cache });
+  g.lib.getStream = async () => stream({ url: 'https://cdn/x' });
+  g.lib.createOpusStreamAt = (info, at) => audioFinto(log, info.url.startsWith('http://127.0.0.1') ? 'ram' : 'diretto', info.url.startsWith('https://cdn') ? 'Server returned 403 Forbidden' : null)(info.url, at);
+  g.lib.createOpusStream = audioFinto(log, 'ripiego');
+  const t = brano(ID);
+  await g.openAudio(t, 12);
+  assert.deepEqual(log.map((x) => x.tipo), ['diretto', 'ram'], 'niente ripiego yt-dlp');
+  assert.deepEqual(scaricati, [[t.url, 'https://cdn/x']]);
+  assert.equal(log[1].args[1], 12, 'dalla RAM parte dallo stesso secondo');
+});
+
+test('avvio: canale vocale e audio si aprono insieme (l\'ingresso in voce non ritarda ffmpeg)', async () => {
+  const ordine = [];
+  let entra;
+  const bot = { ready: true, join: () => { ordine.push('join'); return new Promise((r) => { entra = r; }); }, inVoice: () => true, isConnected: () => true, leave() {} };
+  const g = new GuildMusic('g', { ...opzioni(), bot });
+  g.channelId = 'c';
+  g.openAudio = async () => { ordine.push('audio'); return { stream: new (await import('node:stream')).PassThrough({ objectMode: true }), kill() {}, touch() {}, bytes: () => 1, idleMs: () => 0 }; };
+  const p = g.startReal(brano(ID));
+  await flush();
+  assert.deepEqual(ordine.sort(), ['audio', 'join'], 'l\'audio parte mentre il bot entra nel canale');
+  entra({ subscribe() {} });
+  await p;
+  assert.ok(g.resource, 'risorsa al player dopo l\'ingresso');
+  g.stop();
+});
+
+test('avvio: se l\'ingresso in voce fallisce, l\'audio già aperto si chiude', async () => {
+  let chiuso = false;
+  const bot = { ready: true, join: async () => { throw new Error('Non riesco a entrare nel canale vocale'); }, inVoice: () => false, isConnected: () => false };
+  const g = new GuildMusic('g', { ...opzioni(), bot });
+  g.channelId = 'c';
+  g.openAudio = async () => ({ stream: null, kill() { chiuso = true; } });
+  await assert.rejects(g.startReal(brano(ID)), /entrare nel canale/);
+  await flush();
+  assert.equal(chiuso, true);
+});

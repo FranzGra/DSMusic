@@ -16,11 +16,10 @@ const LOOP_MODES = ['off', 'track', 'queue'];
 const CONTROLLO_BLOCCO_MS = 5000; // ogni quanto si controlla che l'audio scorra
 export const STORICO_MAX = 5; // brani in «Ascoltati di recente»
 const PRECEDENTE_RIPARTI_S = 5; // oltre questi secondi «indietro» fa ricominciare il brano attuale
-const ATTESA_DIRETTO_MS = 10_000; // via veloce: ffmpeg deve dare il primo audio entro questo tempo
+const ATTESA_DIRETTO_MS = 6_000; // via veloce: ffmpeg deve dare il primo audio entro questo tempo (di solito 0,1-0,3 s)
+const ATTESA_RAM_MS = 8_000; // ripiego veloce dopo un 403: download in RAM a blocchi Range (di solito 0,3 s)
 const ATTESA_RIPIEGO_MS = 45_000; // ripiego yt-dlp | ffmpeg: più lento
 const URL_IN_CACHE_MAX = 20;
-const VOLUME_ATTESA_MS = 250; // cursore del volume: si applica 250 ms dopo l'ultimo movimento
-const ANTICIPO_MAX_S = 1.5; // cambio di volume: il nuovo audio parte al massimo così avanti
 const PROSSIMI_IN_RAM = 2; // brani successivi preparati in anticipo (link e audio in RAM)
 
 /** Copia di un brano con un id nuovo (lo stesso brano può stare in coda e nello storico). */
@@ -84,10 +83,6 @@ export class GuildMusic {
     this.lib = { getStream, resolveInput, createOpusStream, createOpusStreamAt };
     this.cache = cache; // AudioCache (audiocache.js) condivisa tra i server, oppure null
     this.onAttivita = onAttivita; // () => void: il gestore controlla se il bot è a riposo
-    // Cambio di volume: il volume lo applica ffmpeg, quindi si riapre l'audio dal punto attuale
-    this.volTimer = null;
-    this.volGen = 0;
-    this.latenza = { cache: 0.15, rete: 0.5 }; // secondi al primo audio (media mobile), per l'anticipo
 
     // Orologio della posizione
     this.startedAt = 0; // ms
@@ -554,7 +549,7 @@ export class GuildMusic {
     return { ...this.streamCache.get(track.url), fromCache: false };
   }
 
-  /** Apre ffmpeg e aspetta il primo audio; misura il tempo per stimare l'anticipo dei cambi di volume. */
+  /** Apre ffmpeg e aspetta il primo audio (registra il tempo, per capire le partenze lente). */
   async prova(info, at, fonte, attesaMs) {
     const t0 = Date.now();
     const audio = this.lib.createOpusStreamAt(info, at, { volume: this.volume, fonte });
@@ -564,8 +559,8 @@ export class GuildMusic {
       audio.kill();
       throw err;
     }
-    const s = (Date.now() - t0) / 1000;
-    if (fonte in this.latenza) this.latenza[fonte] = this.latenza[fonte] * 0.7 + s * 0.3;
+    const ms = Date.now() - t0;
+    if (ms > 1500) console.log(`[musica ${this.guildId}] primo audio da ${fonte} in ${ms} ms`);
     audio.info = info;
     return audio;
   }
@@ -607,7 +602,24 @@ export class GuildMusic {
         }
       }
     }
+    // ffmpeg rifiutato (403) ma il link è diretto: la cache scarica a blocchi Range da 4 MB (come
+    // yt-dlp), che YouTube di solito accetta; in ~0,3 s il brano è in RAM e parte da lì.
+    if (info?.direct && this.cache?.attiva) {
+      const t0 = Date.now();
+      const locale = await this.cache.subito(track.url, info, { durata: track.duration, live: track.live }, ATTESA_RAM_MS);
+      if (locale) {
+        try {
+          const a = await this.prova(locale, at, 'cache', ATTESA_DIRETTO_MS);
+          console.log(`[musica ${this.guildId}] ${track.title}: parte dalla RAM dopo il rifiuto di ffmpeg (${Date.now() - t0} ms)`);
+          return a;
+        } catch (err) {
+          this.cache.togli(track.url);
+          console.error(`[musica ${this.guildId}] ${track.title}: copia in RAM non leggibile (${erroreAudio(err)})`);
+        }
+      }
+    }
     if (soloVeloce) throw new Error('via veloce non disponibile');
+    console.log(`[musica ${this.guildId}] ${track.title}: ripiego yt-dlp | ffmpeg (più lento)`);
     const audio = this.lib.createOpusStream(track.url, at, { volume: this.volume });
     try {
       await audio.ready(ATTESA_RIPIEGO_MS);
@@ -811,68 +823,16 @@ export class GuildMusic {
 
   setVolume(v) {
     this.volume = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    this.applicaVolume();
     this.changed();
-    this.programmaVolume();
-  }
-
-  /** Il volume lo applica ffmpeg: dopo l'ultimo movimento del cursore si riapre l'audio (una volta sola). */
-  programmaVolume() {
-    clearTimeout(this.volTimer);
-    this.volTimer = null;
-    if (!this.audio || !this.current || this.suonoAttivo()) return; // durante un suono: si applica alla fine
-    this.volTimer = setTimeout(() => {
-      this.volTimer = null;
-      void this.applicaVolume();
-    }, VOLUME_ATTESA_MS);
-    this.volTimer.unref?.();
   }
 
   /**
-   * Cambio di volume senza interruzioni: apre un secondo ffmpeg (con il nuovo volume) un po' più
-   * avanti nel brano, aspetta che il vecchio arrivi a quel punto e scambia le risorse del player.
-   * Il vecchio audio suona finché il nuovo non è pronto: niente silenzio. Dalla cache in RAM il
-   * nuovo è pronto in ~0,1 s. In pausa si applica alla ripresa.
+   * Il volume lo applica node al momento della codifica (CodificatoreOpus in audio.js): si sente
+   * dal prossimo pacchetto (~40-60 ms), anche in pausa o durante un suono, senza riaprire l'audio.
    */
-  async applicaVolume() {
-    const t = this.current;
-    const a = this.audio;
-    if (!t || !a || this.loading || !this.bot?.ready || !this.player || a.volume === this.volume || this.suonoAttivo()) return;
-    if (this.paused) {
-      this.pendingSeek = true; // alla ripresa riparte dal punto della pausa con il volume nuovo
-      return;
-    }
-    const myId = this.playId;
-    const gen = ++this.volGen;
-    const live = !spostabile(t);
-    const fonte = this.cache?.ha(t.url) ? 'cache' : 'rete';
-    const anticipo = Math.min(ANTICIPO_MAX_S, this.latenza[fonte] * 1.5 + 0.05);
-    const at = live ? 0 : this.position() + anticipo;
-    if (!live && at >= t.duration - 1) return; // il brano sta finendo: non serve
-    let audio;
-    try {
-      audio = await this.openAudio(t, at, { soloVeloce: true });
-    } catch (err) {
-      console.error(`[musica ${this.guildId}] cambio di volume non applicato: ${err.message}`);
-      return;
-    }
-    const valido = () => myId === this.playId && gen === this.volGen && this.current === t && !this.loading && !this.paused && !this.suonoAttivo();
-    if (valido() && !live) {
-      const resto = at - this.position();
-      if (resto > 0) await new Promise((r) => setTimeout(r, resto * 1000));
-    }
-    if (!valido()) {
-      audio.kill();
-      if (myId === this.playId && this.paused && this.current === t) this.pendingSeek = true;
-      return;
-    }
-    const vecchio = this.audio;
-    this.audio = audio;
-    this.resource = createAudioResource(audio.stream, { inputType: audio.tipo ?? StreamType.OggOpus });
-    this.player.play(this.resource);
-    vecchio?.kill();
-    if (!live) this.startedAt = Date.now() - at * 1000;
-    this.startStallWatch();
-    if (audio.volume !== this.volume) this.programmaVolume(); // spostato ancora nel frattempo
+  applicaVolume() {
+    this.audio?.impostaVolume?.(this.volume);
   }
 
   // ---------- riproduzione ----------
@@ -938,7 +898,20 @@ export class GuildMusic {
 
   /** Collega il bot e fa suonare il brano (dall'inizio, o dal secondo `at` per lo spostamento). */
   async startReal(track, { at = 0, myId = this.playId } = {}) {
-    const connection = await this.bot.join(this.guildId, this.channelId);
+    // Audio e canale vocale insieme: l'ingresso nel canale (~0,5-1,5 s la prima volta) non ritarda
+    // più l'apertura dell'audio. Finché il player non legge, ffmpeg resta fermo (contropressione).
+    const t0 = Date.now();
+    let msAudio = null;
+    const audioP = this.openAudio(track, at).then((a) => { msAudio = Date.now() - t0; return a; });
+    audioP.catch(() => {}); // l'errore si legge sotto, con await
+    let connection;
+    try {
+      connection = await this.bot.join(this.guildId, this.channelId);
+    } catch (err) {
+      audioP.then((a) => a.kill(), () => {});
+      throw err;
+    }
+    const msVoce = Date.now() - t0;
     this.leftOnPurpose = false;
     if (!this.player) {
       this.player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
@@ -963,14 +936,16 @@ export class GuildMusic {
     if (!this.suonoAttivo()) connection.subscribe(this.player);
     else this.suoni.connection = connection;
 
-    const audio = await this.openAudio(track, at);
+    const audio = await audioP;
+    console.log(`[musica ${this.guildId}] avvio «${String(track.title).slice(0, 60)}»: voce ${msVoce} ms, primo audio ${msAudio} ms (${audio.fonte || '?'})`);
     if (myId !== this.playId) {
       audio.kill(); // nel frattempo è cambiato brano (salta, stop...)
       return;
     }
     this.audio = audio;
-    // Ogg/Opus da ffmpeg: node estrae solo i pacchetti, niente decodifica né codifica
-    this.resource = createAudioResource(audio.stream, { inputType: audio.tipo ?? StreamType.OggOpus });
+    audio.impostaVolume?.(this.volume); // spostato mentre si apriva l'audio
+    // Pacchetti Opus già pronti (codificati in node con il volume): il player li manda così come sono
+    this.resource = createAudioResource(audio.stream, { inputType: audio.tipo ?? StreamType.Opus });
     this.player.play(this.resource);
     if (this.suonoAttivo()) {
       // Brano nuovo (salto, spostamento) durante un suono: parte in pausa e riprende alla fine del suono
@@ -1159,9 +1134,6 @@ export class GuildMusic {
 
   killAudio() {
     this.clearStallWatch();
-    clearTimeout(this.volTimer);
-    this.volTimer = null;
-    this.volGen++;
     this.audio?.kill();
     this.audio = null;
     this.resource = null;

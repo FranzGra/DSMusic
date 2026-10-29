@@ -53,12 +53,15 @@ export function useLivePosition(state, receivedAt) {
 
 /**
  * Volume condiviso dal cursore orizzontale e dal fader verticale: aggiorna subito il controllo e invia al
- * server `{ type: 'volume', value }` solo dopo 120 ms senza altri cambi (un trascinamento = pochi messaggi).
+ * server `{ type: 'volume', value }` al massimo ogni 60 ms durante il trascinamento, più l'ultimo valore
+ * alla fine. Il server applica il volume in ~0,1 s senza riaprire l'audio: si sente mentre si trascina.
  */
+const VOLUME_OGNI_MS = 60;
 function useVolume(state, send) {
   const [vol, setVol] = useState(state?.volume ?? 60);
   const dragging = useRef(false);
   const sendTimer = useRef(null);
+  const ultimoInvio = useRef(0);
   const lastOn = useRef(60);
   useEffect(() => {
     if (!dragging.current && state) setVol(state.volume);
@@ -68,7 +71,13 @@ function useVolume(state, send) {
     setVol(v);
     if (v > 0) lastOn.current = v;
     clearTimeout(sendTimer.current);
-    sendTimer.current = setTimeout(() => send({ type: 'volume', value: v }), 120);
+    const invia = () => {
+      ultimoInvio.current = Date.now();
+      send({ type: 'volume', value: v });
+    };
+    const attesa = VOLUME_OGNI_MS - (Date.now() - ultimoInvio.current);
+    if (attesa <= 0) invia();
+    else sendTimer.current = setTimeout(invia, attesa);
   };
   const toggleMute = () => onVolume(vol > 0 ? 0 : lastOn.current);
   return { vol, onVolume, toggleMute, dragging };
