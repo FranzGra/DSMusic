@@ -48,32 +48,43 @@
 .tracks--coda .qrow2 > .qnow__grip { width: 20px; }
 
 /* Col mouse sopra (o col fuoco sulle azioni) la durata scivola a sinistra dei pulsanti, non resta coperta.
-   Dietro la durata un fondo del colore della riga, pieno fino ai pulsanti (right: -16px arriva sotto il loro
-   bordo sinistro) e sfumato solo a sinistra: tra durata e pulsanti non si vede nessun pezzo del titolo. */
+   Durata e pulsanti sono un solo blocco: dietro di loro un velo scuro alto quanto tutta la riga (::after della
+   riga, top/bottom 0, angoli destri come la riga), semitrasparente e sfocato (backdrop-filter), con il bordo
+   sinistro sfumato da una maschera. Il titolo che passa sotto non si legge. Tra durata e pulsanti 10 px
+   (--time-gap). Larghezza del velo: margine destro 6 + pulsanti + spazio + colonna durata 44 + 8 di sfumatura. */
+.tracks--coda .qrow2 { --time-gap: 10px; --time-col: 44px; }
 .tracks--coda .qrow2 > .qrow__time { transition: transform 0.18s ease-out; }
-.tracks--coda .qrow2 > .qrow__time::before {
-  content: ""; position: absolute; z-index: -1; top: -8px; bottom: -8px; left: -16px; right: -16px;
-  background: linear-gradient(to right, transparent, var(--row-bg) 16px);
-  opacity: 0; transition: opacity 0.18s ease-out;
+.tracks--coda .qrow2::after {
+  content: ""; position: absolute; z-index: 2; top: 0; bottom: 0; right: 0;
+  width: calc(6px + var(--acts-w) + var(--time-gap) + var(--time-col) + 8px);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px);
+  mask-image: linear-gradient(to right, transparent, #000 20px);
+  opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out;
 }
 @media (hover: hover) {
+  /* Sopra il velo: durata e pulsanti. */
+  .tracks--coda .qrow2 > .qrow__time { z-index: 3; }
+  .tracks--coda .qrow2 > .qrow__acts { z-index: 3; }
   .tracks--coda .qrow2:hover > .qrow__time,
   .tracks--coda .qrow2:has(> .qrow__acts:focus-within) > .qrow__time {
-    transform: translateX(calc(-1 * (var(--acts-w) + 4px)));
+    transform: translateX(calc(-1 * (var(--acts-w) + var(--time-gap))));
   }
-  .tracks--coda .qrow2:hover > .qrow__time::before,
-  .tracks--coda .qrow2:has(> .qrow__acts:focus-within) > .qrow__time::before { opacity: 1; }
-  /* Durata e pulsanti sono un solo blocco a fondo pieno: le azioni perdono la loro sfumatura (che passava
-     sopra le ultime cifre della durata) e partono 4 px prima del primo pulsante, a fondo pieno. L'unica
-     sfumatura resta quella a sinistra della durata, sopra il titolo. Al tocco resta tutto com'è. */
+  .tracks--coda .qrow2:hover::after,
+  .tracks--coda .qrow2:has(> .qrow__acts:focus-within)::after { opacity: 1; }
+  /* Il fondo lo dà il velo: le azioni perdono la loro sfumatura (che passava sopra la durata). */
   .tracks--coda .qrow2:hover > .qrow__acts,
-  .tracks--coda .qrow2 > .qrow__acts:focus-within { background: var(--row-bg); padding-left: 4px; }
-  /* Primo brano: «Sposta in cima» nascosto non tiene il posto (il fondo pieno coprirebbe la durata);
+  .tracks--coda .qrow2 > .qrow__acts:focus-within { background: none; }
+  /* Primo brano: «Sposta in cima» nascosto non tiene il posto (il velo coprirebbe il vuoto);
      «Rimuovi» resta comunque all'ultimo posto a destra, come nelle altre righe. */
   .tracks--coda .qrow2 > .qrow__acts > .qrow__top[hidden] { display: none; }
 }
+/* Durante il trascinamento niente velo (la riga ha già il suo fondo e l'ombra). */
+.tracks--coda .qrow2.is-dragging::after { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .tracks--coda .qrow2 > .qrow__time, .tracks--coda .qrow2 > .qrow__time::before { transition: none; }
+  .tracks--coda .qrow2 > .qrow__time, .tracks--coda .qrow2::after { transition: none; }
 }
 
 /* Copertina più grande, anche per il brano in corso (con velo ed equalizzatore). */
@@ -102,6 +113,7 @@
   .tracks--coda .qrow.qrow2,
   .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: var(--grip-col) calc(var(--num-w) + 8px) 50px minmax(0, 1fr) 40px; }
   .tracks--coda .qrow2 > .qrow2__text { padding-right: 6px; }
+  .tracks--coda .qrow2 { --time-col: 40px; }
 }
 /* Stretta (< 340 px): via il numero e la colonna della maniglia; copertina sulla linea del titolo «Coda».
    La maniglia passa sopra la copertina: pulsante 44 × 44 con il velo nero al 55% (come .qnow__veil) e i sei
@@ -113,6 +125,7 @@
   .tracks--coda .qrow2 > .qrow__num,
   .tracks--coda .qrow2 > .qnow__grip { display: none; }
   .tracks--coda .qrow2 > .qrow2__text { padding-right: 0; }
+  .tracks--coda .qrow2 { --time-col: 40px; }
   .tracks--coda .qrow2 > .qrow__grip {
     --grip-play: 1;
     position: absolute; z-index: 2; left: 14px; top: 50%;
@@ -130,6 +143,8 @@
   .tracks--coda .qblock .qrow.qrow2 { grid-template-columns: 44px minmax(0, 1fr); column-gap: 6px; }
   .tracks--coda .qrow2 > .qrow__num,
   .tracks--coda .qrow2 > .qrow__time { display: none; }
+  /* Senza durata il velo serve solo ai pulsanti: si stringe a loro (resta la sfumatura a sinistra). */
+  .tracks--coda .qrow2 { --time-col: 0px; --time-gap: 0px; }
 }
 
 /* Al tocco la maniglia (20 px) è stretta per un dito: l'area attiva si allarga di 4 px a sinistra e 8 px a destra
@@ -137,3 +152,6 @@
 @media (hover: none) {
   .tracks--coda .qrow2 > .qrow__grip::after { content: ""; position: absolute; inset: 0 -8px 0 -4px; }
 }
+
+/* Telefono: niente durata e pulsanti sempre visibili nella loro colonna (telefono.css): niente velo. */
+.layout-m .tracks--coda .qrow.qrow2::after { display: none; }
