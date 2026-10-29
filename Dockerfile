@@ -1,10 +1,13 @@
 # syntax=docker/dockerfile:1
 # Bot musicale Discord: server Node + interfaccia compilata + yt-dlp + ffmpeg.
 # Multi-architettura: funziona su amd64 e arm64 (anche schede ARM con poca RAM).
+# Ogni macchina costruisce la propria immagine (PC con buildx, Raspberry Pi col builder classico,
+# che non definisce BUILDPLATFORM/TARGETARCH): per questo niente «--platform=$BUILDPLATFORM» e
+# l'architettura si ricava dal sistema della fase di build (prova del 29-10-2026).
 
 # ---------- 1) Build dell'interfaccia ----------
-# Sulla piattaforma di build (niente emulazione): il risultato sono file statici uguali per tutti.
-FROM --platform=$BUILDPLATFORM node:24-slim AS build
+# Il risultato sono file statici uguali per tutte le architetture.
+FROM node:24-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY server/package.json server/
@@ -25,10 +28,10 @@ RUN npm ci --omit=dev --no-audit --no-fund -w @discord-music/server
 # ---------- 3) yt-dlp (versione «cartella», non il file unico) ----------
 # Il file unico (yt-dlp_linux) a OGNI avvio estrae ~83 MB in /tmp: su macchine piccole vuol dire
 # scritture continue sul disco e ~0,3 s di CPU in più per brano.
-# La versione «cartella» (yt-dlp_linux.zip) parte già estratta. Si scarica sulla piattaforma di
-# build (niente emulazione): sono solo file.
-FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS ytdlp
-# TARGETARCH lo imposta Docker: amd64 oppure arm64
+# La versione «cartella» (yt-dlp_linux.zip) parte già estratta.
+FROM debian:bookworm-slim AS ytdlp
+# TARGETARCH lo imposta buildx (amd64 o arm64); il builder classico no: allora vale l'architettura
+# del sistema (dpkg), che qui coincide sempre con quella di destinazione.
 ARG TARGETARCH
 # Cambia questo valore (o usa --build-arg) per forzare il download di un yt-dlp nuovo
 ARG YTDLP_VERSION=latest
@@ -36,10 +39,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl unzip \
  && rm -rf /var/lib/apt/lists/*
 RUN set -eu; \
-    case "$TARGETARCH" in \
+    arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    case "$arch" in \
       amd64) f=yt-dlp_linux.zip ;; \
       arm64) f=yt-dlp_linux_aarch64.zip ;; \
-      *) echo "Architettura non supportata: $TARGETARCH"; exit 1 ;; \
+      *) echo "Architettura non supportata: $arch"; exit 1 ;; \
     esac; \
     if [ "$YTDLP_VERSION" = latest ]; then u="https://github.com/yt-dlp/yt-dlp/releases/latest/download/$f"; \
     else u="https://github.com/yt-dlp/yt-dlp/releases/download/$YTDLP_VERSION/$f"; fi; \
