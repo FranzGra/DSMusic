@@ -17,6 +17,12 @@ const numero = (v, predefinito) => {
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : predefinito;
 };
+/** Fattore tra 0,05 e 1 dal .env; se manca o non è valido vale il predefinito. */
+const fattore = (v, predefinito) => {
+  const t = String(v ?? '').trim().replace(',', '.');
+  const n = t ? Number(t) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.max(0.05, Math.min(1, n)) : predefinito;
+};
 const vero = (v) => ['1', 'true', 'si', 'sì', 'yes'].includes(String(v ?? '').trim().toLowerCase());
 
 export const config = {
@@ -41,6 +47,9 @@ export const config = {
   dataDir: path.resolve(rootDir, env.DATA_DIR?.trim() || 'data'),
   // Audio fermo (yt-dlp o ffmpeg bloccati) per più di così: si passa al brano dopo
   stallSeconds: numero(env.BLOCCO_AUDIO_SECONDI, 30) || 30,
+  // Volume di base: quanto forte esce l'audio in Discord con il cursore al 100% (musica e suoni).
+  // 0,5 = metà ampiezza, circa -6 dB. Il cursore mostra sempre 0-100%: uscita = cursore × VOLUME_BASE.
+  volumeBase: fattore(env.VOLUME_BASE, 0.5),
   // Chi parla nel canale vocale (MOSTRA_CHI_PARLA=0 per spegnerlo): il bot entra non self-deaf
   // e legge solo chi manda pacchetti voce, senza ascoltare né decodificare l'audio.
   mostraParlanti: !['0', 'false', 'no'].includes(String(env.MOSTRA_CHI_PARLA ?? '').trim().toLowerCase()),

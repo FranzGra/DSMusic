@@ -53,7 +53,7 @@ test('copia Opus da metà brano: parte dal secondo chiesto (niente salto indietr
     after = () => new Promise((ok) => server.close(ok));
     const da = 33.7;
     const url = `http://127.0.0.1:${server.address().port}/c/x`;
-    const audio = createOpusStreamAt({ url, acodec: 'opus' }, da, { volume: 100, fonte: 'cache' });
+    const audio = createOpusStreamAt({ url, acodec: 'opus' }, da, { volume: 100, fonte: 'cache', base: 1 }); // base 1: copia possibile
     assert.equal(audio.modo, 'copia');
     const parti = [];
     for await (const c of audio.stream) parti.push(c);

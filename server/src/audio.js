@@ -1,8 +1,10 @@
 // Flusso audio per Discord, già in Opus: node non decodifica e non ricodifica niente.
 // ffmpeg legge la sorgente (link diretto con i suoi header, oppure la copia in RAM della cache) e
 // scrive Ogg/Opus; @discordjs/voice estrae solo i pacchetti (StreamType.OggOpus).
-//  - sorgente già Opus e volume 100%: copia senza ricodifica (-c:a copy), CPU quasi zero;
+//  - sorgente già Opus e volume reale 100% (cursore 100% e VOLUME_BASE=1): copia senza ricodifica
+//    (-c:a copy), CPU quasi zero;
 //  - altrimenti: filtro volume di ffmpeg + libopus (codificatore nativo, più leggero di opusscript).
+// Volume reale = cursore (0-100) / 100 × config.volumeBase (predefinito 0,5: il 100% del cursore è più basso).
 // Ripiego: yt-dlp scarica e passa i dati a ffmpeg (più lento, ma funziona sempre).
 import { spawn } from 'node:child_process';
 import os from 'node:os';
@@ -14,25 +16,31 @@ export const OPUS_KBPS = 128;
 
 const vivo = (p) => p.exitCode === null && p.signalCode === null;
 
+/** Fattore reale passato a ffmpeg: cursore (0-100) per il volume di base, 3 decimali. */
+export function fattoreVolume(volume = 100, base = config.volumeBase) {
+  const v = Math.max(0, Math.min(100, Math.round(volume)));
+  return Number(((v / 100) * base).toFixed(3));
+}
+
 /**
  * Come esce l'audio da ffmpeg: 'copia' (pacchetti Opus della sorgente così come sono) oppure
  * 'opus' (ricodifica con libopus, con il volume applicato da ffmpeg).
- * La copia è possibile solo se la sorgente è Opus e il volume è al 100%.
+ * La copia è possibile solo se la sorgente è Opus e il volume reale è 1 (cursore 100% e base 1).
  */
-export function sceltaUscita({ acodec = null, volume = 100 } = {}) {
-  return acodec === 'opus' && Math.round(volume) === 100 ? 'copia' : 'opus';
+export function sceltaUscita({ acodec = null, volume = 100, base = config.volumeBase } = {}) {
+  return acodec === 'opus' && fattoreVolume(volume, base) === 1 ? 'copia' : 'opus';
 }
 
 /** Argomenti di uscita di ffmpeg per la modalità scelta (sempre Ogg/Opus su stdout). */
-export function argomentiUscita(modo, volume = 100) {
+export function argomentiUscita(modo, volume = 100, base = config.volumeBase) {
   // -copypriorss 0: con la copia e -ss prima di -i, ffmpeg salta al punto di indice (Cues del WebM)
   // precedente e copierebbe anche i pacchetti prima del secondo chiesto (fino a qualche secondo
   // indietro): spostamenti e cambi di volume ripartirebbero da un altro punto. Così parte giusto (±20 ms).
   if (modo === 'copia') return ['-vn', '-c:a', 'copy', '-copypriorss', '0', '-f', 'ogg', 'pipe:1'];
-  const v = Math.max(0, Math.min(100, Math.round(volume)));
+  const f = fattoreVolume(volume, base);
   return [
     '-vn',
-    ...(v !== 100 ? ['-af', `volume=${(v / 100).toFixed(2)}`] : []),
+    ...(f !== 1 ? ['-af', `volume=${f}`] : []),
     '-ar', '48000', '-ac', '2',
     // compression_level 5: circa il 35% di CPU in meno del livello 10 (predefinito; misura 0,70% contro 1,08%) con qualità che a 128 kbps non si distingue
     '-c:a', 'libopus', '-b:a', `${OPUS_KBPS}k`, '-vbr', 'on', '-compression_level', '5', '-frame_duration', '20',
@@ -161,11 +169,12 @@ export function headerArgs(headers = {}) {
  * Via veloce: ffmpeg legge l'URL (diretto, o quello locale della cache in RAM) con gli header giusti.
  * Con startSec > 0 -ss sta PRIMA di -i, così salta subito al punto giusto senza scaricare l'inizio.
  * @param {{ url: string, headers?: Record<string,string>, acodec?: string|null }} stream
- * @param {{ volume?: number, fonte?: string }} opzioni fonte: 'rete' | 'cache' (solo per i log e le stime)
+ * @param {{ volume?: number, fonte?: string, base?: number }} opzioni fonte: 'rete' | 'cache' (solo per i log e le stime);
+ *   base: volume di base (predefinito config.volumeBase)
  */
-export function createOpusStreamAt(stream, startSec = 0, { volume = 100, fonte = 'rete' } = {}) {
+export function createOpusStreamAt(stream, startSec = 0, { volume = 100, fonte = 'rete', base = config.volumeBase } = {}) {
   const ss = startSec > 0 ? ['-ss', String(Math.max(0, Math.round(startSec * 1000) / 1000))] : [];
-  const modo = sceltaUscita({ acodec: stream.acodec, volume });
+  const modo = sceltaUscita({ acodec: stream.acodec, volume, base });
   const ffmpeg = spawn(
     config.ffmpeg,
     [
@@ -174,7 +183,7 @@ export function createOpusStreamAt(stream, startSec = 0, { volume = 100, fonte =
       ...headerArgs(stream.headers),
       ...ss,
       '-i', stream.url,
-      ...argomentiUscita(modo, volume),
+      ...argomentiUscita(modo, volume, base),
     ],
     { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
   );

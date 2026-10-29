@@ -3,6 +3,7 @@
 // al player dei suoni e, alla fine, torna alla musica che riprende dal punto esatto.
 // Hook sottili in music.js (position, startReal, checkStall, programmaVolume, pause, resume, stop…).
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import {
   AudioPlayerStatus,
   NoSubscriberBehavior,
@@ -11,6 +12,7 @@ import {
   createAudioResource,
 } from '@discordjs/voice';
 import { SoundError } from './suoni.js';
+import { config } from './config.js';
 
 const MARGINE_FINE_MS = 3000; // se il player non dice «finito» entro durata + 3 s, si chiude comunque
 
@@ -28,8 +30,36 @@ export class SoundPlayer {
     // Nei test si sostituiscono con versioni finte
     this.crea = {
       player: () => createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } }),
-      risorsa: (file) => createAudioResource(fs.createReadStream(file), { inputType: StreamType.OggOpus }),
+      risorsa: (file) => this.risorsaFile(file),
     };
+    this.ffmpeg = null; // ffmpeg del suono in corso (solo con VOLUME_BASE diverso da 1)
+  }
+
+  /**
+   * Risorsa del suono. Con VOLUME_BASE 1 il file Ogg/Opus va così com'è (niente ffmpeg); altrimenti
+   * ffmpeg applica il volume di base come alla musica (un suono dura al massimo ~20 s: costo minimo).
+   */
+  risorsaFile(file) {
+    const base = config.volumeBase;
+    if (base === 1) return createAudioResource(fs.createReadStream(file), { inputType: StreamType.OggOpus });
+    this.chiudiFfmpeg();
+    const ffmpeg = spawn(config.ffmpeg, [
+      '-hide_banner', '-nostdin', '-loglevel', 'error', '-i', file,
+      '-vn', '-af', `volume=${base}`, '-ar', '48000', '-ac', '2',
+      '-c:a', 'libopus', '-b:a', '96k', '-frame_duration', '20', '-f', 'ogg', 'pipe:1',
+    ], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    ffmpeg.on('error', (e) => console.error(`[suoni ${this.g.guildId}] ffmpeg non avviabile:`, e.message));
+    ffmpeg.stdout.on('error', () => {});
+    ffmpeg.once('close', () => { if (this.ffmpeg === ffmpeg) this.ffmpeg = null; });
+    this.ffmpeg = ffmpeg;
+    return createAudioResource(ffmpeg.stdout, { inputType: StreamType.OggOpus });
+  }
+
+  /** Chiude l'ffmpeg del suono precedente (interrotto o finito), se c'è ancora. */
+  chiudiFfmpeg() {
+    const p = this.ffmpeg;
+    this.ffmpeg = null;
+    if (p && p.exitCode === null && p.signalCode === null) p.kill('SIGKILL');
   }
 
   /** Per lo stato verso i client. */
@@ -128,6 +158,7 @@ export class SoundPlayer {
     const r = this.resource;
     this.resource = null;
     if (r) this.player?.stop(true);
+    this.chiudiFfmpeg();
     if (g.player && this.connection) this.connection.subscribe(g.player);
     // Riprende solo la musica sospesa dal suono: quella messa in pausa dall'utente ha paused = true.
     // (Durante un suono la musica non suona mai: se c'è un brano non in pausa è sospeso dal suono.)
@@ -159,6 +190,7 @@ export class SoundPlayer {
     this.resource = null;
     this.connection = null;
     this.player?.stop(true);
+    this.chiudiFfmpeg();
   }
 
   /** A riposo: niente player. */

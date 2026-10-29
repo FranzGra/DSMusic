@@ -3,7 +3,7 @@
 // Niente Discord, yt-dlp né ffmpeg. Avvio: npm test
 import { test, mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { argomentiUscita, sceltaUscita } from '../src/audio.js';
+import { argomentiUscita, fattoreVolume, sceltaUscita } from '../src/audio.js';
 import { AudioCache } from '../src/audiocache.js';
 import { creaLimitatore } from '../src/resolver.js';
 import { GuildMusic, MusicManager } from '../src/music.js';
@@ -29,18 +29,32 @@ function fetchFinto(bytes, { log = [] } = {}) {
 }
 
 // ---------- via audio ----------
-test('via audio: copia senza ricodifica solo con sorgente Opus e volume 100%', () => {
-  assert.equal(sceltaUscita({ acodec: 'opus', volume: 100 }), 'copia');
-  assert.equal(sceltaUscita({ acodec: 'opus', volume: 60 }), 'opus');
-  assert.equal(sceltaUscita({ acodec: 'mp4a.40.2', volume: 100 }), 'opus');
-  assert.equal(sceltaUscita({ acodec: null, volume: 100 }), 'opus');
+test('via audio: copia senza ricodifica solo con sorgente Opus e volume reale 100%', () => {
+  // base 1 = nessuna riduzione (come prima di VOLUME_BASE)
+  assert.equal(sceltaUscita({ acodec: 'opus', volume: 100, base: 1 }), 'copia');
+  assert.equal(sceltaUscita({ acodec: 'opus', volume: 60, base: 1 }), 'opus');
+  assert.equal(sceltaUscita({ acodec: 'mp4a.40.2', volume: 100, base: 1 }), 'opus');
+  assert.equal(sceltaUscita({ acodec: null, volume: 100, base: 1 }), 'opus');
   assert.deepEqual(argomentiUscita('copia'), ['-vn', '-c:a', 'copy', '-copypriorss', '0', '-f', 'ogg', 'pipe:1']);
-  const a60 = argomentiUscita('opus', 60);
+  const a60 = argomentiUscita('opus', 60, 1);
   assert.ok(a60.includes('libopus'));
-  assert.equal(a60[a60.indexOf('-af') + 1], 'volume=0.60');
+  assert.equal(a60[a60.indexOf('-af') + 1], 'volume=0.6');
   assert.equal(a60[a60.indexOf('-b:a') + 1], '128k');
   assert.equal(a60.at(-2), 'ogg');
-  assert.equal(argomentiUscita('opus', 100).includes('-af'), false, 'a 100% niente filtro volume');
+  assert.equal(argomentiUscita('opus', 100, 1).includes('-af'), false, 'a 100% niente filtro volume');
+});
+
+test("via audio: il volume di base abbassa l'uscita reale, il cursore resta 0-100", () => {
+  assert.equal(fattoreVolume(100, 0.5), 0.5);
+  assert.equal(fattoreVolume(60, 0.5), 0.3);
+  assert.equal(fattoreVolume(0, 0.5), 0);
+  assert.equal(fattoreVolume(150, 0.5), 0.5, 'oltre 100 si ferma a 100');
+  // con base 0,5 anche il 100% del cursore ricodifica con il filtro (niente copia)
+  assert.equal(sceltaUscita({ acodec: 'opus', volume: 100, base: 0.5 }), 'opus');
+  const a100 = argomentiUscita('opus', 100, 0.5);
+  assert.equal(a100[a100.indexOf('-af') + 1], 'volume=0.5');
+  const a33 = argomentiUscita('opus', 33, 0.5);
+  assert.equal(a33[a33.indexOf('-af') + 1], 'volume=0.165');
 });
 
 // ---------- limite yt-dlp ----------
