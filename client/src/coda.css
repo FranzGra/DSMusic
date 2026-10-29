@@ -48,8 +48,8 @@
 .tracks--coda .qrow2 > .qnow__grip { width: 20px; }
 
 /* Col mouse sopra (o col fuoco sulle azioni) la durata scivola a sinistra dei pulsanti, non resta coperta.
-   Durata e pulsanti sono un solo blocco: dietro di loro un velo scuro alto quanto tutta la riga (::after della
-   riga, top/bottom 0, angoli destri come la riga), semitrasparente e sfocato (backdrop-filter), con il bordo
+   Durata e pulsanti sono un solo blocco: dietro di loro un velo trasparente alto quanto tutta la riga (::after della
+   riga, top/bottom 0, angoli destri come la riga), che sfoca soltanto (backdrop-filter, stessa tinta della riga), con il bordo
    sinistro sfumato da una maschera. Il titolo che passa sotto non si legge. Tra durata e pulsanti 10 px
    (--time-gap). Larghezza del velo: margine destro 6 + pulsanti + spazio + colonna durata 44 + 8 di sfumatura. */
 .tracks--coda .qrow2 { --time-gap: 10px; --time-col: 44px; }
@@ -58,7 +58,7 @@
   content: ""; position: absolute; z-index: 2; top: 0; bottom: 0; right: 0;
   width: calc(6px + var(--acts-w) + var(--time-gap) + var(--time-col) + 8px);
   border-radius: 0 var(--radius) var(--radius) 0;
-  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  background: transparent; /* stessa tinta della riga in hover (--hover è già sotto): solo sfocatura */
   -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
   -webkit-mask-image: linear-gradient(to right, transparent, #000 20px);
   mask-image: linear-gradient(to right, transparent, #000 20px);
