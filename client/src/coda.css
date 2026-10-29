@@ -81,6 +81,15 @@
      «Rimuovi» resta comunque all'ultimo posto a destra, come nelle altre righe. */
   .tracks--coda .qrow2 > .qrow__acts > .qrow__top[hidden] { display: none; }
 }
+/* Al tocco (o dove il browser dice di non avere il passaggio del mouse) i pulsanti sono SEMPRE visibili
+   (styles.css): la durata deve stare sempre alla loro sinistra con lo stesso spazio, sopra il velo, altrimenti
+   finisce sotto «Rimuovi» («3X7»). Stesso blocco del passaggio del mouse, fisso. */
+@media (hover: none) {
+  .tracks--coda .qrow2 > .qrow__time { z-index: 3; transform: translateX(calc(-1 * (var(--acts-w) + var(--time-gap)))); }
+  .tracks--coda .qrow2 > .qrow__acts { z-index: 3; background: none; }
+  .tracks--coda .qrow2::after { opacity: 1; }
+  .tracks--coda .qrow2 > .qrow__acts > .qrow__top[hidden] { display: none; }
+}
 /* Durante il trascinamento niente velo (la riga ha già il suo fondo e l'ombra). */
 .tracks--coda .qrow2.is-dragging::after { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {

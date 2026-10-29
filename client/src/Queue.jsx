@@ -194,35 +194,36 @@ function Skeleton() {
   );
 }
 
-const ROW = 56; // px, uguale a --row dentro .tracks--coda (coda.css)
 // Due colonne solo se ognuna resta larga almeno ~400 px (titolo leggibile): 2 × 400 + 16 di spazio + 20 di margini.
 const MIN_TWO_COLS = 840;
 
+// Gruppi fissi da 10 brani (richiesta di Franz, 29-10-2026), separati da una riga, qualunque sia l'altezza
+// del pannello. Dentro il gruppo i brani riempiono le colonne in ordine: righe per colonna = ceil(10 / colonne)
+// (1 colonna → 10; 2 colonne → 5 + 5). Con 3 o più colonne la stessa formula darebbe 4 + 4 + 2: le colonne si
+// riempiono una alla volta, come nelle due colonne (oggi le colonne sono al massimo due, MIN_TWO_COLS).
+const GROUP = 10;
+
 /**
- * Righe per colonna nella vista orizzontale: quante ne stanno nell'altezza del pannello.
- * Restituisce 0 quando serve una colonna sola (pannello stretto o vista a tre colonne).
+ * Colonne della coda nella vista orizzontale: 2 se il pannello è largo abbastanza, altrimenti 1
+ * (pannello stretto o vista a tre colonne). Con `enabled` falso: 1.
  */
-function useRowsPerColumn(ref, enabled) {
-  const [rows, setRows] = useState(0);
+function useQueueColumns(ref, enabled) {
+  const [cols, setCols] = useState(1);
   useLayoutEffect(() => {
     const panel = ref.current?.parentElement;
-    if (!enabled || !panel) return setRows(0);
-    const measure = () => {
-      const head = ref.current?.querySelector('.qhead')?.offsetHeight ?? 0;
-      const h = panel.clientHeight - head - 16;
-      setRows(panel.clientWidth < MIN_TWO_COLS ? 0 : Math.max(4, Math.floor(h / ROW)));
-    };
+    if (!enabled || !panel) return setCols(1);
+    const measure = () => setCols(panel.clientWidth < MIN_TWO_COLS ? 1 : 2);
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(panel);
     return () => ro.disconnect();
   }, [ref, enabled]);
-  return rows;
+  return cols;
 }
 
 /**
- * Coda. Con `columns` (vista orizzontale) i brani vanno su due colonne riempite per colonna:
- * prima tutta la sinistra, poi la destra; quando non bastano, un altro blocco uguale sotto.
+ * Coda a gruppi di 10 brani separati da una riga. Con `columns` (vista orizzontale) e pannello largo, ogni
+ * gruppo va su due colonne riempite per colonna: 1-5 a sinistra, 6-10 a destra; poi il gruppo successivo sotto.
  */
 /**
  * Durata totale scritta «11h23m22s» (tavola «Pulsanti con testo», ritocco di Franz): cifre normali, lettere
@@ -376,7 +377,8 @@ export default function Queue({ state, loading = false, send, onFocusSearch, col
     }
     seenIds.current = ids;
   }, [items, state]);
-  const rows = useRowsPerColumn(viewRef, columns && !loading && (items.length > 0 || Boolean(current)));
+  const cols = useQueueColumns(viewRef, columns && !loading && (items.length > 0 || Boolean(current)));
+  const rows = cols > 1 ? Math.ceil(GROUP / cols) : 0; // righe per colonna nei gruppi a più colonne
   // Solo in sviluppo: ultimi messaggi inviati dalla coda, per controllare gli indici di `move`.
   const out = (msg) => {
     if (import.meta.env.DEV) (window.__codaInviati ||= []).push(msg);
@@ -448,9 +450,10 @@ export default function Queue({ state, loading = false, send, onFocusSearch, col
   // Posizione in `shown` → indice nella coda vera (la riga in corso vale -1, non usato).
   const at = (k) => (current ? k - 1 : k);
 
-  // Blocchi da 2 × rows righe; ogni blocco riempie la colonna sinistra e poi la destra.
+  // Gruppi da GROUP brani (numerati come a schermo: la riga in corso è il n° 1). A più colonne ogni gruppo
+  // riempie la colonna sinistra e poi la destra; a una colonna è una lista semplice. L'ultimo può essere più corto.
   const blocks = [];
-  if (rows) for (let s = 0; s < shown.length; s += rows * 2) blocks.push([s, shown.slice(s, s + rows * 2)]);
+  for (let s = 0; s < shown.length; s += GROUP) blocks.push([s, shown.slice(s, s + GROUP)]);
 
   const empty = (
     <div className={`empty ${current ? 'qnow__empty' : ''}`}>
@@ -490,8 +493,8 @@ export default function Queue({ state, loading = false, send, onFocusSearch, col
             >
               {/* Solo i brani della coda sono ordinabili: la riga in corso resta fuori. */}
               <SortableContext items={items.map((t) => t.id)} strategy={rectSortingStrategy}>
-                {rows ? (
-                  blocks.map(([start, part]) => (
+                {blocks.map(([start, part]) =>
+                  rows ? (
                     <ol
                       key={start}
                       className="qblock"
@@ -500,9 +503,11 @@ export default function Queue({ state, loading = false, send, onFocusSearch, col
                     >
                       {part.map((t, j) => row(t, start + j))}
                     </ol>
-                  ))
-                ) : (
-                  <ol className="queue__list">{shown.map(row)}</ol>
+                  ) : (
+                    <ol key={start} className="queue__list qgroup" start={start + 1}>
+                      {part.map((t, j) => row(t, start + j))}
+                    </ol>
+                  ),
                 )}
               </SortableContext>
             </DndContext>

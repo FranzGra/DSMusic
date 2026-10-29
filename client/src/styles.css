@@ -608,7 +608,9 @@ html:has(.layout-m), html:has(.layout-m) body, html:has(.layout-m) #root { heigh
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
 }
-.qblock + .qblock { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+/* Gruppi da 10 brani (Queue.jsx, GROUP): a due colonne .qblock, a una colonna .qgroup; la stessa riga li separa. */
+.qblock + .qblock,
+.qgroup + .qgroup { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 /* riga della coda, densa: maniglia | # | copertina | titolo · autore | da | durata | azioni */
 .qrow {
