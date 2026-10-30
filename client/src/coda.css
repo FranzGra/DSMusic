@@ -52,7 +52,9 @@
    riga, top/bottom 0, angoli destri come la riga), che sfoca soltanto (backdrop-filter, stessa tinta della riga), con il bordo
    sinistro sfumato da una maschera. Il titolo che passa sotto non si legge. Tra durata e pulsanti 10 px
    (--time-gap). Larghezza del velo: margine destro 6 + pulsanti + spazio + colonna durata 44 + 8 di sfumatura. */
-.tracks--coda .qrow2 { --time-gap: 10px; --time-col: 44px; }
+/* isolation: gli z-index interni alla riga (azioni, durata, velo) restano dentro la riga e non competono con
+   l'intestazione fissa del telefono (.mqhead, z-index 3, telefono.css): le X le scorrono sotto come il resto. */
+.tracks--coda .qrow2 { --time-gap: 10px; --time-col: 44px; isolation: isolate; }
 .tracks--coda .qrow2 > .qrow__time { transition: transform 0.18s ease-out; }
 .tracks--coda .qrow2::after {
   content: ""; position: absolute; z-index: 2; top: 0; bottom: 0; right: 0;
