@@ -1,6 +1,9 @@
 node_modules
 dist
 .env
+.env.*
+!.env.example
+*cookies*.txt
 .playwright-cli
 .taste-skill
 *.log

@@ -18,7 +18,7 @@ export const COMMANDS = [
         .setDescription('In fondo alla coda (predefinito) o subito dopo il brano in corso')
         .addChoices({ name: 'in coda', value: 'fine' }, { name: 'come prossima', value: 'prossimo' }),
     ),
-  new SlashCommandBuilder().setName('stop').setDescription('Ferma la musica, svuota la coda e fa uscire il bot').setDMPermission(false),
+  new SlashCommandBuilder().setName('stop').setDescription('Ferma la musica e fa uscire il bot: la coda resta').setDMPermission(false),
   new SlashCommandBuilder().setName('skip').setDescription('Salta al prossimo brano della coda').setDMPermission(false),
   new SlashCommandBuilder().setName('pausa').setDescription('Mette in pausa o fa ripartire il brano').setDMPermission(false),
   new SlashCommandBuilder().setName('coda').setDescription('Mostra (solo a te) il brano in corso e i prossimi 10').setDMPermission(false),
@@ -143,11 +143,11 @@ export async function handleCommand(i, { music, notify = () => {}, isConnected =
     }
 
     case 'stop': {
-      // Esce anche a coda finita: conta la connessione vocale, non solo la coda.
-      if (!g.current && !g.queue.length && !g.inVoice()) return soloTe(i, 'Non sono in nessun canale vocale.');
+      // Esce anche a coda finita: conta la connessione vocale, non la coda (che resta).
+      if (!g.current && !g.loading && !g.inVoice()) return soloTe(i, 'Non sono in nessun canale vocale.');
       g.stop();
       notify(i.guildId, `Musica fermata da ${utente} con /stop`);
-      return i.reply('Fermato: coda svuotata, esco dal canale.');
+      return i.reply('Fermato: esco dal canale, la coda resta.');
     }
 
     case 'skip': {
@@ -428,10 +428,10 @@ export async function handleTextMessage(ctx, { music, notify = () => {} }) {
       return reply('Riparto dalla coda.');
     }
     case 'stop': {
-      if (!g.current && !g.queue.length && !g.inVoice()) return reply('Non sono in nessun canale vocale.');
+      if (!g.current && !g.loading && !g.inVoice()) return reply('Non sono in nessun canale vocale.');
       g.stop();
       notify(guildId, `Musica fermata da ${user} in chat`);
-      return reply('Fermato: coda svuotata, esco dal canale.');
+      return reply('Fermato: esco dal canale, la coda resta.');
     }
     case 'coda': {
       if (!g.current && !g.queue.length) return reply('La coda è vuota. Scrivi un titolo o un link.');

@@ -602,7 +602,7 @@ const chiudi = async () => {
   chiusura = true;
   console.log('\n[server] Chiusura…');
   setTimeout(() => process.exit(0), 3000).unref();
-  // Prima si salva la coda così com'è; poi stop() la svuota, ma il salvataggio è già chiuso.
+  // Prima si salva la coda così com'è (con il brano in corso); poi stop() chiude audio e canale.
   await store.flush().catch(() => {});
   store.close();
   for (const g of music.guilds.values()) g.stop();

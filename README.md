@@ -53,7 +53,8 @@ Solo audio, niente video. Si ascolta insieme nel canale vocale e si comanda la c
 - 📝 Scrive il brano in corso nello stato del canale vocale.
 - ⚡ Lo stato della coda è per server e arriva in tempo reale a tutti, via WebSocket.
 - 🚪 Il bot esce da solo se il canale resta vuoto o se non suona niente per un po'.
-- 💾 La coda si salva su disco e torna dopo un riavvio (in pausa).
+- 🗂️ La coda si legge a gruppi da 10 brani, separati da una riga.
+- 💾 La coda si salva su disco e torna dopo un riavvio (in pausa). Resta anche quando il bot si ferma o esce: si svuota solo con il cestino.
 - ⌨️ Comandi slash e comandi da chat (messaggi nei canali musica o menzione del bot).
 - 🧪 Modalità prova: l'interfaccia funziona nel normale browser, senza Discord e senza audio.
 
@@ -122,6 +123,7 @@ Il bot legge anche i messaggi (serve il **Message Content Intent**):
 - Se è già in un altro canale con persone dentro, non si sposta e dice dove si trova.
 - Riscontro: una reazione e una risposta breve con il titolo. Gli errori arrivano come risposta.
 - I messaggi degli altri bot vengono ignorati.
+- `/stop` e `stop` fermano la musica e fanno uscire il bot: la coda resta e al primo play riparte il primo brano, dall'inizio.
 
 ## Configurazione 🔧
 
@@ -165,10 +167,8 @@ Esempio minimo con Caddy (`Caddyfile`): `tuo-dominio.example { reverse_proxy 127
 Serve solo Docker. Il `.env` resta fuori dall'immagine: lo legge `docker compose` all'avvio.
 
 ```bash
-```bash
 cp .env.example .env     # poi compila i valori
 docker compose up -d --build
-```
 ```
 
 | Cosa | Comando |
@@ -183,22 +183,21 @@ docker compose up -d --build
 - Il tunnel di prova usa `cloudflared`: l'indirizzo `*.trycloudflare.com` cambia a ogni avvio e va ricopiato in *Activities, URL Mappings*.
 - I container ripartono da soli (`restart: unless-stopped`).
 - L'interfaccia risponde anche su <http://localhost:3001>.
+- Funziona anche su Raspberry Pi e altre macchine arm64. Il `Dockerfile` si costruisce anche con il builder classico, senza buildx.
 - Non avviare anche `npm start` con lo stesso token: due bot si disturbano.
 - La coda e le librerie stanno nel volume Docker `discord-music-dati` (`/app/data`). `docker compose down` non lo cancella, `docker compose down -v` sì.
-- Il bot ha un limite di 768 MB di RAM, 1,5 CPU e `/tmp` in RAM. Con poca RAM metti `YTDLP_CONTEMPORANEI=1` e `CACHE_AUDIO_MB=64`.
+- Il bot ha un limite di 768 MB di RAM, 1,5 CPU e `/tmp` in RAM. Su Docker rootless il limite di memoria può essere ignorato. Con poca RAM metti `YTDLP_CONTEMPORANEI=1` e `CACHE_AUDIO_MB=64`.
 - Ruoli Soundbar: imposta `SOUNDBAR_RUOLO_ID` nel `.env` (vedi sotto); `docker-compose.yml` lo legge da lì.
 - Impostazioni solo tue (porte, limiti, variabili): mettile in un `docker-compose.override.yml`, che Docker Compose unisce da solo ed è escluso da git.
 
 ### Sviluppo senza Docker
 
 ```bash
-```bash
 npm install
 cp .env.example .env     # poi compila i valori
 npm run build            # compila l'interfaccia
 npm start                # server e bot su http://localhost:3001
 npm run tunnel           # in un secondo terminale: mostra il dominio da mettere nell'URL mapping
-```
 ```
 
 Poi in Discord: entra in un canale vocale, apri **Activities** (il razzo) e scegli la tua app.
@@ -212,10 +211,8 @@ Poi in Discord: entra in un canale vocale, apri **Activities** (il razzo) e sceg
 Per provare una build accanto al server vero, su un'altra porta:
 
 ```bash
-```bash
 cd client && npx vite build --outDir dist-prova && cd ..
 PORT=3002 MODALITA_PROVA=1 DISCORD_BOT_TOKEN= DISCORD_CLIENT_SECRET= CLIENT_DIST=client/dist-prova npm start
-```
 ```
 
 Le variabili scritte nel comando valgono più di quelle del `.env`.
@@ -236,6 +233,7 @@ Si mettono nel file `.env` (mai nel repository). Se manca qualcosa di obbligator
 | `USCITA_CANALE_VUOTO_SECONDI` | no | Secondi di attesa a canale vuoto prima di uscire (predefinito 60; `0` = disattivato) |
 | `USCITA_INATTIVITA_MINUTI` | no | Minuti senza musica, a coda finita, prima di uscire (predefinito 5; `0` = disattivato) |
 | `MOSTRA_CHI_PARLA` | no | `1` = anello sull'avatar di chi parla (predefinito 1) |
+| `VOLUME_BASE` | no | Quanto forte esce l'audio con il cursore al 100%, da 0,05 a 1 (predefinito 0,5). Vale anche per la Soundbar |
 | `STATO_CANALE` | no | `1` = scrive il brano nello stato del canale vocale (predefinito 1) |
 | `YTDLP_PATH`, `FFMPEG_PATH`, `FFPROBE_PATH` | no | Percorsi dei programmi se non sono nel `PATH` |
 | `DATA_DIR` | no | Cartella dei dati salvati (predefinita `data`; in Docker `/app/data`) |
@@ -292,6 +290,7 @@ Si mettono nel file `.env` (mai nel repository). Se manca qualcosa di obbligator
 | `GET /api/config` | Configurazione pubblica per l'interfaccia |
 | `POST /api/token` | Scambia il codice OAuth2 dell'Activity con un token |
 | `GET /api/thumb` | Copertine: passano dal server perché dentro Discord le immagini esterne sono bloccate (solo domini noti di YouTube, SoundCloud e Spotify) |
+| `POST /api/suoni` | Carica un suono della Soundbar (corpo binario, con il biglietto ricevuto via WebSocket) |
 | `POST /api/diag` | Diagnostica dell'aggancio dell'Activity |
 | `GET /api/health` | Stato del servizio (usato dall'healthcheck di Docker) |
 

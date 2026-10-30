@@ -71,7 +71,7 @@ test('playlist: il primo brano parte subito, il resto arriva dopo (senza doppion
   g.stop();
 });
 
-test('playlist arrivata dopo stop: non riempie la coda', async () => {
+test('playlist arrivata dopo stop: il resto non entra e il bot non rientra', async () => {
   const g = new GuildMusic('g', opzioni());
   let finisci;
   g.lib.getStream = async () => stream();
@@ -80,7 +80,8 @@ test('playlist arrivata dopo stop: non riempie la coda', async () => {
   g.stop();
   finisci({ tracks: [brano('bbbbbbbbbbb')], playlistTitle: null });
   await flush();
-  assert.deepEqual(g.queue, []);
+  assert.equal(g.current, null);
+  assert.deepEqual(g.queue.map((t) => t.url), [`https://www.youtube.com/watch?v=${ID}`], 'resta solo il brano già in coda');
 });
 
 test('audio: link in cache non valido → link nuovo e secondo tentativo', async () => {

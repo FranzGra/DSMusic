@@ -178,7 +178,7 @@ test('link con «riproduci ora»: parte subito, il brano interrotto va nello sto
   assert.equal(g.history[0].title, 'A');
 });
 
-test('shuffle e stop azzerano i «prossimi»; rimuoverne uno non rompe l’ordine', async () => {
+test('shuffle azzera i «prossimi», stop li lascia in ordine; rimuoverne uno non rompe l’ordine', async () => {
   const { g } = setup();
   await g.add('A');
   await g.add('B');
@@ -191,7 +191,7 @@ test('shuffle e stop azzerano i «prossimi»; rimuoverne uno non rompe l’ordin
   await g.add('W', { posizione: 'prossimo' });
   assert.equal(titoli(g)[0], 'W', 'dopo lo shuffle il «dopo» torna in testa');
   g.stop();
-  assert.equal(g.prossimi.size, 0);
+  assert.deepEqual(titoli(g).slice(0, 2), ['A', 'W'], 'dopo stop il brano fermato è in cima, poi il «prossimo»');
 });
 
 test('messaggi: in coda, riproduce dopo, in riproduzione', () => {

@@ -94,7 +94,8 @@ test('/pausa, /skip, /coda, /stop usano la stessa coda della GUI', async () => {
   i = fake('stop', { guildId: 'g2' });
   await handleCommand(i, ctx);
   assert.equal(g.current, null);
-  assert.equal(g.queue.length, 0);
+  assert.deepEqual(g.queue.map((t) => t.title), ['B', 'C'], 'la coda resta, con il brano fermato in cima');
+  assert.match(i.calls[0][1].content ?? i.calls[0][1], /la coda resta/);
 });
 
 test('playNow: il brano cliccato parte, la coda resta in ordine, con ripeti coda l\'interrotto va in fondo', async () => {

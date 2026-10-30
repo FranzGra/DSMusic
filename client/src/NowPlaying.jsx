@@ -676,7 +676,8 @@ export default function NowPlaying({ state, receivedAt, send, layout = 'v', bare
 
 /** Ferma ed esci: azione di sessione, accanto allo stato del bot (non tra i comandi del brano). */
 export function StopButton({ state, send, wide = false }) {
-  const disabled = !state?.current && !state?.queue?.length && !state?.inVoice;
+  // La coda resta dopo lo stop: conta solo se c'è qualcosa da fermare o un canale da lasciare.
+  const disabled = !state?.current && !state?.loading && !state?.inVoice;
   return (
     <button
       type="button"

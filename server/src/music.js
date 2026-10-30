@@ -20,6 +20,7 @@ const ATTESA_DIRETTO_MS = 6_000; // via veloce: ffmpeg deve dare il primo audio 
 const ATTESA_RAM_MS = 8_000; // ripiego veloce dopo un 403: download in RAM a blocchi Range (di solito 0,3 s)
 const ATTESA_RIPIEGO_MS = 45_000; // ripiego yt-dlp | ffmpeg: più lento
 const URL_IN_CACHE_MAX = 20;
+const FALLIMENTI_MAX = 3; // brani di fila che non partono: ci si ferma, così un guasto non consuma la coda
 const PROSSIMI_IN_RAM = 2; // brani successivi preparati in anticipo (link e audio in RAM)
 
 /** Copia di un brano con un id nuovo (lo stesso brano può stare in coda e nello storico). */
@@ -89,6 +90,7 @@ export class GuildMusic {
     this.pausedPos = 0; // secondi
 
     this.playId = 0;
+    this.fallimenti = 0; // brani di fila che non sono partiti
     this.simTimer = null;
     this.audio = null; // { kill }
     this.resource = null;
@@ -505,6 +507,10 @@ export class GuildMusic {
     } catch (err) {
       if (myId !== this.playId) return;
       console.error(`[musica ${this.guildId}] spostamento in ${t.title}:`, err.message);
+      if (err.voce) {
+        this.fermatiSeGuasto(err);
+        return;
+      }
       this.onNotice(this.guildId, { kind: 'error', message: `Non riesco ad andare a quel punto di «${t.title}»: riparte dall'inizio` });
       try {
         await this.startReal(t, { myId });
@@ -758,25 +764,16 @@ export class GuildMusic {
     return Boolean(this.bot?.inVoice?.(this.guildId) ?? this.bot?.isConnected(this.guildId));
   }
 
-  /** Ferma tutto, svuota la coda ed esce dal canale (anche se la coda era già finita). */
+  /**
+   * Ferma l'audio ed esce dal canale (anche a coda finita). La coda resta e si salva: il brano in
+   * corso torna in cima e al primo play riparte dall'inizio. Solo clear() (il cestino) svuota.
+   */
   stop() {
-    this.stopGen++;
+    this.stopGen++; // il resto di una playlist ancora in lettura non fa rientrare il bot
     this.clearPresenceTimers();
-    this.away = false;
-    this.autoPaused = false;
+    this.parkCurrent();
+    this.away = this.queue.length > 0;
     if (this.inVoice()) this.leftOnPurpose = true;
-    this.playId++;
-    this.queue = [];
-    this.prossimi.clear();
-    this.current = null;
-    this.paused = false;
-    this.loading = false;
-    this.pausedPos = 0;
-    this.pendingSeek = false;
-    this.suoni?.azzera();
-    this.killAudio();
-    this.player?.stop(true);
-    this.clearSim();
     this.bot?.leave(this.guildId);
     this.changed();
   }
@@ -874,10 +871,11 @@ export class GuildMusic {
       if (this.bot?.ready && this.channelId) {
         await this.startReal(next);
       } else if (this.bot?.ready && !this.channelId) {
-        throw new Error('Non so in quale canale vocale entrare: apri l\'Activity da un canale vocale');
+        throw Object.assign(new Error('Non so in quale canale vocale entrare: apri l\'Activity da un canale vocale'), { voce: true });
       }
       if (myId !== this.playId) return;
 
+      this.fallimenti = 0;
       this.loading = false;
       this.startedAt = Date.now();
       if (this.paused) this.player?.pause(); // messo in pausa mentre preparava l'audio
@@ -890,6 +888,7 @@ export class GuildMusic {
     } catch (err) {
       if (myId !== this.playId) return;
       console.error(`[musica ${this.guildId}]`, err.message);
+      if (this.fermatiSeGuasto(err)) return;
       this.onNotice(this.guildId, { kind: 'error', message: `Non riesco a riprodurre «${next.title}»: ${err.message}` });
       this.current = null; // evita che il loop ripeta un brano rotto
       void this.playNext({ fromEnd: false });
@@ -909,6 +908,7 @@ export class GuildMusic {
       connection = await this.bot.join(this.guildId, this.channelId);
     } catch (err) {
       audioP.then((a) => a.kill(), () => {});
+      err.voce = true; // colpa del canale, non del brano: vedi fermatiSeGuasto
       throw err;
     }
     const msVoce = Date.now() - t0;
@@ -981,10 +981,28 @@ export class GuildMusic {
   audioFailed(reason) {
     const t = this.current;
     console.error(`[musica ${this.guildId}] ${t?.title}: ${reason}`);
+    if (this.fermatiSeGuasto(new Error(reason))) return;
     this.killAudio();
     this.onNotice(this.guildId, { kind: 'error', message: `Non riesco a riprodurre «${t?.title}»: ${reason}. Passo al prossimo` });
     this.current = null; // evita che il loop ripeta un brano rotto
     void this.playNext({ fromEnd: false });
+  }
+
+  /**
+   * Un brano non parte. Se la colpa è del canale vocale, o se è già il terzo di fila (rete o YouTube
+   * giù), passare al prossimo consumerebbe tutta la coda: ci si ferma qui, il brano torna in cima
+   * e play riprova. Restituisce true se si è fermato; altrimenti conta il fallimento e basta.
+   */
+  fermatiSeGuasto(err) {
+    this.fallimenti++;
+    if (!err.voce && this.fallimenti < FALLIMENTI_MAX) return false;
+    this.fallimenti = 0;
+    this.parkCurrent();
+    this.away = this.queue.length > 0;
+    const motivo = err.voce ? err.message : `${FALLIMENTI_MAX} brani di fila non partono`;
+    this.onNotice(this.guildId, { kind: 'error', message: `${motivo}. Mi fermo: la coda resta, premi play per riprovare` });
+    this.changed();
+    return true;
   }
 
   // ---------- presenza nel canale vocale ----------

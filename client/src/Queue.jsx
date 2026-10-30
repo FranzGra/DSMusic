@@ -197,7 +197,7 @@ function Skeleton() {
 // Due colonne solo se ognuna resta larga almeno ~400 px (titolo leggibile): 2 × 400 + 16 di spazio + 20 di margini.
 const MIN_TWO_COLS = 840;
 
-// Gruppi fissi da 10 brani (richiesta di Franz, 29-10-2026), separati da una riga, qualunque sia l'altezza
+// Gruppi fissi da 10 brani (29-10-2026), separati da una riga, qualunque sia l'altezza
 // del pannello. Dentro il gruppo i brani riempiono le colonne in ordine: righe per colonna = ceil(10 / colonne)
 // (1 colonna → 10; 2 colonne → 5 + 5). Con 3 o più colonne la stessa formula darebbe 4 + 4 + 2: le colonne si
 // riempiono una alla volta, come nelle due colonne (oggi le colonne sono al massimo due, MIN_TWO_COLS).
@@ -226,7 +226,7 @@ function useQueueColumns(ref, enabled) {
  * gruppo va su due colonne riempite per colonna: 1-5 a sinistra, 6-10 a destra; poi il gruppo successivo sotto.
  */
 /**
- * Durata totale scritta «11h23m22s» (tavola «Pulsanti con testo», ritocco di Franz): cifre normali, lettere
+ * Durata totale scritta «11h23m22s» (tavola «Pulsanti con testo»): cifre normali, lettere
  * h, m, s più piccole (queue-head.css, .qtools__u). Minuti e secondi a due cifre dopo un'unità più grande.
  */
 function DurataHMS({ sec }) {

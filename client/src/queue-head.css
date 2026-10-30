@@ -102,7 +102,7 @@
 /* Più schede (riga strumenti sotto le linguette, Panels.jsx): qui il titolo è la linguetta e il ≡ sta nella riga
    delle linguette, quindi le soglie qui sopra (pensate per «Coda» + conteggio) non valgono. Il conteggio resta
    sempre: a 300 px (MIN_CODA) «N brani», e «Cerca» scivola verso il centro dello spazio libero (CampoAnimato).
-   La durata (tavola «Pulsanti con testo», ritocco di Franz) se ne va insieme al testo di Mescola, sotto 600 px
+   La durata (tavola «Pulsanti con testo») se ne va insieme al testo di Mescola, sotto 600 px
    di pannello: a 520 e 420 px resta solo «N brani». */
 .pnl__bar.pnl__bar--tools > .ipill.qtools__count { display: inline-flex; flex: none; white-space: nowrap; }
 .pnl__bar.pnl__bar--tools > .ipill.qtools__count .qtools__dur { display: inline-flex; }
